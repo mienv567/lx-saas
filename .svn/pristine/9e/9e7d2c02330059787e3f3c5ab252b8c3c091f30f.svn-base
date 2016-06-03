@@ -1,0 +1,7 @@
+<?php
+$_fw_NavIndex = 2;
+$_fw_AppTypeName = '云系统';
+$_fw_uriPrefix = 'cloud_system';
+</script>
+
+@extends('cloud_base.appsys_my_detail')

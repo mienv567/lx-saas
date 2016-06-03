@@ -1,0 +1,296 @@
+<?php $_fw_HTMLTitle = '流量红包'; $_fw_ContextPath = '../';
+$_fw_MenuIndex = 1;
+$_fw_NavIndex = 1;
+$_fw_AppTypeName = '云服务';
+$_fw_uriPrefix = 'cloud_service';
+ ?>
+@extends('layouts.base_service')
+
+@section('styles')
+<link rel="stylesheet" type="text/css" href="{{asset("res/public/css/bootstrap.min.css")}}" />
+<link rel="stylesheet" type="text/css" href="{{asset("res/public/fanwe_ui.css")}}" />
+<link rel="stylesheet" type="text/css" href="{{asset("res/css/m_financial_consumer.css")}}" />
+@endsection
+
+@section('scripts')
+<script type='text/javascript' src='{{ asset("res/public/jquery.dateinputpack.js")  }}' charset='utf-8'></script>
+<script type='text/javascript' src='{{ asset("res/public/select2.min.js")  }}' charset='utf-8'></script>
+<script type="text/javascript">
+$(document).ready(function(){
+    $("select.defaul").select2();
+   $('#activitystart').date_input();
+    $('#activityend').date_input();
+   $('#activitystart2').date_input();
+    $('#activityend2').date_input();
+
+    $("#page_go").bind('click',function() {
+        $("#search_submit").click();
+    });
+    $("#search_submit").bind('click',function(){
+        var page_num = $("#page_num").val();
+        if(page_num!=''){
+            $("#page").val(page_num);
+        }
+        $("#flow_red_search").submit();
+    });
+    $(".tgflow").bind('click',function(){
+        $(".flow").toggleClass("active");
+    });
+    $("#recharge").bind('click',function(){
+        var recharge_money = $("input[name='recharge_money']").val();
+        /*if(recharge_money<=0){
+            alert("充值金额必须大于0");
+            return false;
+        }
+        if(recharge_money%100 != 0){
+            alert("充值金额必须是100的倍数");
+            return false;
+        }*/
+        var _token = $("input[name='_token']").val();
+        $.ajax({
+            url: '{{route("cloud_service.recharge.post")}}',
+            dataType: "json",
+            data:'recharge_money='+recharge_money+'&_token='+_token,
+            type: "POST",
+            success:function(data, textStatus, jqXHR) {
+                //var data = $.parseJSON(data);
+                if(data.err == 1){
+                    alertWarn(data.msg);
+                }else{
+                    if(data.url){
+                        location.href = data.url;
+                    }
+                }
+
+            }
+        });
+        return false;
+    });
+});
+</script>
+@endsection
+
+@section('content')
+<div class="content">
+<div class="tree-title">
+<span><i class="iconfont">&#xe605;</i>当前位置>云服务><em>流量红包</em></span>
+</div>
+<div class="tree-content financial_consumer">
+    <div class="m-withe financialtit">
+        @if(isset($flow_red['id']) && $flow_red['id']>0)
+        <div class="f_l"><span>流量余额：</span> </div>
+        <div class="f_l"><em>{{round($flow_red['money'],2)}}</em></div>
+        <div class="f_l flowbox">
+          <a class="btn line btn-red f_l tgflow" href="javascript:void(0);" role="button">我要充值</a>
+          <input name="_token" type="hidden" value="{{csrf_token()}}"/>
+          <div class="flow">
+            <div class="input-wrap f_l">
+                <input type="text" class="W-input " id="" name="recharge_money" value="">
+                <span class="holder-tip" style="display: inline;">输入充值金额</span>
+            </div>
+            <a class="btn  defaul btn-red" id="recharge" role="button">确定</a>
+          </div>
+        </div>
+        @else
+        <div class="f_l"><span>需要购买流量红包应用后才能充值</span> </div>
+        <a class="btn line btn-red f_l" href="{{url('cloud_platform')}}" role="button">去购买</a>
+        @endif
+        <div class="blank0"></div>
+    </div>
+
+    <div class="financialtab">
+        <ul class="tab">
+            <li class="first active" rel="1"><a href="javascript:void(0);">充值明细</a></li>
+            <!--<li class="" rel="2"><a class="" href="javascript:void(0);">消费明细</a></li>-->
+        </ul>
+        <div class="tabcontent active" rel="1">
+        <div class="m-withe">
+            <form id="flow_red_search" method="post" action="{{route('cloud_service.flow_red.index')}}">
+            <input type="hidden" name="_token" value="{{csrf_token()}}"/>
+            <input type="hidden" name="page" id="page"/>
+            <div class="financialist1">
+                <!--<div class="list f_l">
+                <span>产品：</span>
+                <select class="defaul">
+                  <option value="volvo">所有产品</option>
+                  <option value="saab">a</option>
+                  <option value="opel">b</option>
+                  <option value="audi">c</option>
+                </select>
+                <select class="defaul">
+                  <option value="volvo">所有产品类明细</option>
+                  <option value="saab">a</option>
+                  <option value="opel">b</option>
+                  <option value="audi">c</option>
+                </select>
+                </div>
+                <div class="list f_l">
+                <span>支付状态：</span>
+                <select class="defaul" name="status">
+                  <option value="all" @if(!isset($all['status'])||$all['status']=='all')selected="selected"@endif>全部</option>
+                  <option value="0" @if(isset($all['status'])&& $all['status']=='0')selected="selected" @endif>未支付</option>
+                  <option value="1" @if(isset($all['status'])&& $all['status']=='1')selected="selected" @endif>已支付</option>
+                  <option value="2" @if(isset($all['status'])&& $all['status']=='2')selected="selected" @endif>已完成</option>
+                  <option value="4" @if(isset($all['status'])&& $all['status']=='4')selected="selected" @endif>已取消</option>
+                </select>
+                </div>-->
+                <div class="list f_l timelist">
+                <span class="f_l lh37">时间<i class="iconfont f_garycolor">&#xe606;</i>：</span>
+                <div class="u-datepicker  f_l">
+                    <div class="input-wrap">
+                        <input type="text" name="start_time" class="W-input " id="activitystart" value="@if(isset($all['start_time'])){{$all['start_time']}}@endif" placeholder="开始时间">
+                        <span class="holder-tip"></span>
+                    </div>
+                </div>
+                <span class="f_l lh37 zhi">&nbsp;至&nbsp;</span>
+                <div class="u-datepicker f_l">
+                    <div class="input-wrap">
+                        <input type="text" name="end_time" class="W-input " id="activityend" value="@if(isset($all['start_time'])){{$all['end_time']}}@endif" placeholder="结束时间">
+                        <span class="holder-tip"></span>
+                    </div>
+                </div>
+                </div>
+                <a class="btn defaul  btn-default f_l" href="javascript:void(0);" role="button" id="search_submit">查询</a>
+                <div class="blank0"></div>
+            </div>
+            </form>
+            <div class="financialist2">
+                充值总计：<em class="f_themecolor">{{round(array_sum(array_column($orders->toArray()['data'],'order_money')),2)}}</em>
+            </div>
+            <div class="financialist3">
+                <table class="table table-hover">
+                <thead>
+                    <tr>
+                      <th>充值时间</th>
+                      <th>充值金额</th>
+                      <th>账单号</th>
+                      <th>处理状态</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if(sizeof($orders))
+                    @foreach($orders as $k=>$item)
+                    <tr onclick="">
+                      <td>{{$item->updated_at}}</td>
+                      <td>￥{{$item->order_money}}</td>
+                      <td>{{$item->order_no}}</td>
+                      <td><span class="f_bluecolor">@if($item->order_status==1)未处理@elseif($item->order_status==2)已处理@elseif($item->order_status==3)处理异常 @endif</span></td>
+                    </tr>
+                    @endforeach
+                    @endif
+                </tbody>
+                </table>
+            </div>
+            <div class="financialist4">
+                  <a class="btn defaul  btn-default f_r" href="javascript:void(0);" role="button" id="page_go">GO</a>
+                  <div class="input-wrap f_r">
+                      <input type="text" class="W-input " id="page_num" name="page_num" value="" data-form-un="1460442869071.4133">
+                      <span class="holder-tip" style="display: inline;"></span>
+                  </div>
+                  <ul class="pagination f_r">
+                    {!!$orders->appends($all)->render()!!}
+                  </ul>
+                  <span class="f_garycolor f_r">共有{{sizeof($orders)}}条，每页显示：10条</span>
+                <div class="blank0"></div>
+            </div>
+        </div>
+        </div><!-- tabcontent end -->
+
+        <div class="tabcontent" rel="2">
+        <div class="m-withe">
+            <div class="financialist1">
+                <div class="list f_l">
+                <span>时间<i class="iconfont f_garycolor">&#xe606;</i>：</span>
+                <div class="u-datepicker">
+                    <div class="input-wrap">
+                        <input type="text" name="start_time" class="W-input " id="activitystart2" value="" placeholder="开始时间">
+                        <span class="holder-tip"></span>
+                    </div>
+                </div>
+                <span>&nbsp;至&nbsp;</span>
+                <div class="u-datepicker">
+                    <div class="input-wrap">
+                        <input type="text" name="end_time" class="W-input " id="activityend2" value="" placeholder="结束时间">
+                        <span class="holder-tip"></span>
+                    </div>
+                </div>
+                </div>
+                <a class="btn defaul  btn-default f_l" href="javascript:void(0);" role="button">查询</a>
+                <div class="blank0"></div>
+            </div>
+            <div class="financialist2">
+                2016-03-01&nbsp;至&nbsp;2016-03-28&nbsp; 消费总计：<em class="f_themecolor">￥1647.11</em>
+            </div>
+            <div class="financialist3">
+                <table class="table table-hover">
+                <thead>
+                    <tr>
+                      <th class="percent50">消费时间</th>
+                      <th class="percent30">金额</th>
+                      <th class="textcenter">支付状态</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr onclick="">
+                      <td>2016-03-28 01:00 - 2016-03-28 02:00</td>
+                      <td>￥0.01</td>
+                      <td class="textcenter"><span class="f_greencolor">已支付</span></td>
+                    </tr>
+                    <tr onclick="">
+                      <td>2016-03-28 01:00 - 2016-03-28 02:00</td>
+                      <td>￥0.01</td>
+                      <td class="textcenter"><span class="f_greencolor">已支付</span></td>
+                    </tr>
+                    <tr onclick="">
+                      <td>2016-03-28 01:00 - 2016-03-28 02:00</td>
+                      <td>￥0.01</td>
+                      <td class="textcenter"><span class="f_greencolor">已支付</span></td>
+                    </tr>
+                </tbody>
+                </table>
+            </div>
+            <div class="financialist4">
+                  <a class="btn defaul  btn-default f_r" href="javascript:void(0);" role="button">GO</a>
+                    <div class="input-wrap f_r">
+                        <input type="text" class="W-input " id="mobile" name="mobile" value="" data-form-un="1460442869071.4133">
+                        <span class="holder-tip" style="display: inline;"></span>
+                    </div>
+                  <ul class="pagination f_r">
+                    <li>
+                      <a href="#" aria-label="Previous">
+                        <span aria-hidden="true">&laquo;</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a href="#" aria-label="Next">
+                        <span aria-hidden="true">&lt;</span>
+                      </a>
+                    </li>
+                    <li class="active"><a href="#">1</a></li>
+                    <li><a href="#">2</a></li>
+                    <li><a href="#">3</a></li>
+                    <li><a href="#">4</a></li>
+                    <li><a href="#">5</a></li>
+                    <li>
+                      <a href="#" aria-label="Next">
+                        <span aria-hidden="true">&gt;</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a href="#" aria-label="Next">
+                        <span aria-hidden="true">&raquo;</span>
+                      </a>
+                    </li>
+                  </ul>
+                <span class="f_garycolor f_r">共有297条，每页显示：20条</span>
+                <div class="blank0"></div>
+            </div>
+        </div>
+        </div><!-- tabcontent end -->
+    </div>
+
+</div>
+
+
+</div>
+@endsection

@@ -1,0 +1,51 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use App\Models\Message;
+
+class IndexController extends Controller
+{
+
+    /**
+     * 构造函数
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
+    /**
+     * 显示主页面
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index(Request $request)
+    {
+        // 获取用户信息
+        $user = $request->user();
+        // 获取站内消息数
+        $messageCount = Message::where('user_id', $user->id)->where('msgtype', 0)->count();
+        // 获取站内消息列表
+        $messages = Message::where('user_id', $user->id)->where('msgtype', 0)->take(5)->get();
+        // 获取公告列表
+        $bulletins = Message::where('msgtype', 1)->take(5)->get();
+        // 显示
+        $data = array('user'=>$user, 'messageCount'=>$messageCount, 'messages'=>$messages, 'bulletins'=>$bulletins);
+        return view('index', $data);
+    }
+
+    /**
+     * 显示主页面中的首页
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function home(Request $request)
+    {
+        return view('home');
+    }
+
+}

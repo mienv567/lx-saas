@@ -1,0 +1,295 @@
+<?php
+$_fw_HtmlTitle = '首页';
+?>
+
+@extends('layouts.base')
+
+@section('styles')
+<link rel="stylesheet" type="text/css" href="{{asset('res/css/basicdata.css')}}" />
+<link rel="stylesheet" type="text/css" href="{{asset('res/css/phonebind.css')}}" />
+<link rel="stylesheet" type="text/css" href="{{asset('res/css/basicdata_extra.css')}}" />
+<style>
+    .list .tip {
+        position: initial;
+        top: 0;
+        right: -260px;
+        width: 250px;
+        text-align: left;
+        line-height: 37px;
+        font-weight: normal;
+        color: #e47470;
+    }
+</style>
+@endsection
+
+@section('scripts')
+<script type='text/javascript' src='{{asset('res/js/send-sms2.js')}}' charset='utf-8'></script>
+<script type='text/javascript' src='{{asset('res/js/rephone.js')}}' charset='utf-8'></script>
+
+<script>
+var url = "user/showAppCert"
+
+function showUserAppCert(sender)
+{
+    var btn = $('#viewUserCertBtn');
+    var obj = $('#userAppCert');
+    var x = btn.offset().left;
+    var y = btn.offset().top;
+    var w = btn.outerWidth();
+    var h = btn.outerHeight();
+    obj.show();
+    var ow = obj.outerWidth();
+    obj.css('left', (x - ow + w) + 'px');
+    obj.css('top', (y + h + 10) + 'px');
+}
+function hideUserAppCert()
+{
+    $('#userAppCert').hide();
+}
+
+function hidemobileAppCert()
+{
+    $('#mobileAppCert').hide();
+}
+function toggleUserAppSecretNone()
+{
+    $('#userAppSecretMark').text("**********************************");
+    $('#userAppSecretShowBtn').show();
+    $('#userAppSecrethideBtn').hide();
+
+}
+
+
+function toggleUserAppSecretDisplay(tp){
+    if(tp<2)
+    { //显示key
+        var mobile_appkey = $("input[name=lo_appkey]").val();
+        if(mobile_appkey==1){
+            var app_secret =  $("input[name=app_sec]").val();
+            $('#userAppSecretMark').text(app_secret);
+            $('#userAppSecretShowBtn').hide();
+            $('#userAppSecrethideBtn').show();
+        }else{
+            var btn = $('#viewUserCertBtn');
+            var obj = $('#mobileAppCert');
+            var x = btn.offset().left;
+            var y = btn.offset().top;
+            var w = btn.outerWidth();
+            var h = btn.outerHeight();
+            obj.show();
+            var ow = obj.outerWidth();
+            obj.css('left', (x - ow + w) + 'px');
+            obj.css('top', (y + h + 10) + 'px');
+            $('#button-res').hide();
+            $('#button-mobile').show();
+        }
+    }else{ //重置key
+        var btn = $('#viewUserCertBtn');
+        var obj = $('#mobileAppCert');
+        var x = btn.offset().left;
+        var y = btn.offset().top;
+        var w = btn.outerWidth();
+        var h = btn.outerHeight();
+        obj.show();
+        var ow = obj.outerWidth();
+        obj.css('left', (x - ow + w) + 'px');
+        obj.css('top', (y + h + 10) + 'px');
+        $('#button-res').show();
+        $('#button-mobile').hide();
+    }
+}
+</script>
+@endsection
+
+
+@section('content')
+<div class="content">
+    <div class="tree-title">
+        <span><i class="iconfont">&#xe605;</i>当前位置>首页><em>基本资料</em></span>
+    </div>
+    <div class="tree-content">
+        <div class="m-withe basetit">
+            <div class="left">
+                <div class="headimg">
+                    <img src="@if($user->photo){{$user->photo}}@else {{asset('res/images/head_deafaul.png')}}@endif">
+                </div>
+                <div class="headcontent">
+                    <h1>{{ empty($user) ? '' : (empty($user->nickname) ? $user->username : $user->nickname) }}</h1>
+@if (empty($user) || empty($user->company_name))
+                    <div class="list">主体信息：{{ $user->company_name or '' }} <a class="a-link" href="{{ url('user/account_setting') }}">[完善信息]</a></div>
+@else
+                    <div class="list">主体信息：{{ $user->company_name or '' }}</div>
+@endif
+                    <div class="list">
+                        <!-- 账户ID：1543651231685465123135156 -->
+                        <span class="pd30"></span>
+                        APP证书：{{ Utils::maskMiddleChar(empty($user) ? '' : $user->app_id) }}<a id="viewUserCertBtn" class="btn line btn-red" href="javascript:showUserAppCert()">查看</a><!-- <i class="iconfont look">&#xe606;</i> -->
+                    </div>
+                    <div class="list">
+                        <i class="iconfont sj">&#xe608;</i>{{ Utils::maskPhone($user->mobile) }}<a class="a-link" href="{{ url('user/phonebind_one') }}">修改</a>
+                        <span class="pd30"></span>
+                        <!-- 
+                        <i class="iconfont sj">&#xe60a;</i>{{ Utils::maskEmail($user->email) }}<a class="a-link" href="javascript:void(0)">修改</a>
+                        -->
+                    </div>
+                    <div class="blank0"></div>
+                </div>
+                <div class="blank0"></div>
+            </div>
+            <div class="right">
+                <div class="rcontent">
+                    <h1>余额：</h1>
+                    <h2>{{ empty($user) ? '0.00' : number_format($user->money, 2) }} <a class="a-link" href="{{ url('user/finance_manage#recharge') }}">明细</a></h2>
+                    <div class="btnrecharge"><a class="btn  btn-red" href="{{ url('user/financial_recharge') }}">我要充值</a></div>
+                </div>
+            </div>
+            <div class="blank0"></div>
+        </div>
+        <div class="newswrap">
+            <div class=" left">
+                <div class="m-withe">
+                    <table class="table table-hover">
+                    <thead>
+                        <tr>
+                          <th>站内消息<span>{{ $messageCount or '' }}</span></th>
+@if (empty($messages) || count($messages)<5)
+                            <th class="textright"> &nbsp;</th>
+@else
+                          <th class="textright"><a href="{{ url('user/message_list') }}">更多</a></th>
+@endif
+                        </tr>
+                    </thead>
+                    <tbody>
+@if (empty($messages) || count($messages) <= 0)
+                       <!--  <tr onclick="">
+                          <td colspan="2" class="nomessage">暂无消息！</td>
+                        </tr> -->
+@else
+  <?php $blankRowStart = 0;?>
+  @foreach ($messages as $message)
+    <?php $blankRowStart++;?>
+                        <tr onclick="javascript:window.location.href='{{ url('user/message_detail?id='.$message->id) }}'">
+                          <td>{{ $message->title or '' }}</td>
+                          <td class="small">{{ date('Y-m-d', strtotime($message->created_at)) }} &nbsp; {{ date('H:i:s', strtotime($message->created_at)) }}</td>
+                        </tr>
+  @endforeach
+  @for ($i = $blankRowStart; $i < 5; $i++)
+                  <!--       <tr onclick="">
+                          <td>&nbsp;</td>
+                          <td class="small">&nbsp;</td>
+                        </tr> -->
+  @endfor
+  @if ($i < 5)
+                        <tr onclick="">
+                          <td>&nbsp;</td>
+                          <td class="small">&nbsp;</td>
+                        </tr>
+    @endif
+@endif
+                    </tbody>
+                    </table>
+                    @if (empty($messages) || count($messages) <= 0)
+                    <div class="nonews"><i class="iconfont">&#xe625;</i>暂时没有消息哦</div>
+                   @endif
+                    
+                </div>
+            </div>
+            <div class="right">
+                <div class="m-withe">
+                    <table class="table table-hover">
+                    <thead>
+                        <tr>
+                          <th>公告</th>
+@if (empty($bulletins) || count($bulletins) <= 5)
+                          <th class="textright">&nbsp;</th>
+@else
+                          <th class="textright"><a href="{{ url('user/bulletin_list') }}">更多</a></th>
+@endif
+                        </tr>
+                    </thead>
+                    <tbody>
+@if (empty($bulletins) || count($bulletins) <= 0)
+                     <!--    <tr onclick="">
+                          <td colspan="2" class="nomessage">暂无公告！</td>
+                        </tr> -->
+@else
+  <?php $blankRowStart = 0;?>
+  @foreach ($bulletins as $bulletin)
+    <?php $blankRowStart++;?>
+                        <tr onclick="javascript:window.location.href='{{ url('user/bulletin_detail?id='.$bulletin->id) }}'">
+                          <td>{{ $bulletin->title or '' }}</td>
+                          <td class="small">{{ date('Y-m-d', strtotime($bulletin->created_at)) }} &nbsp; {{ date('H:i:s', strtotime($bulletin->created_at)) }}</td>
+                        </tr>
+  @endforeach
+  @for ($i = $blankRowStart; $i < 5; $i++)
+  @endfor
+  @if ($i < 5)
+                        <tr onclick="">
+                          <td>&nbsp;</td>
+                          <td class="small">&nbsp;</td>
+                        </tr>
+    @endif
+@endif
+                    </tbody>
+                    </table>
+                    @if (empty($bulletins) || count($bulletins) <= 0)
+                    <div class="nonews"><i class="iconfont">&#xe625;</i>暂时没有消息哦</div>
+                   @endif
+                </div>
+            </div>
+            <div class="blank0"></div>
+        </div>
+    </div>
+</div>
+<div id="userAppCert" style="display: none;">
+    <h1>APP证书</h1><span class="close" onclick="javascript:hideUserAppCert();"></span>
+    <ul>
+        <li>
+            <label>App ID: </label>
+            <span>{{ empty($user) ? '' : $user->app_id }}</span>
+        </li>
+        <input type="hidden" name="app_sec" @if(session('lo_appkey'))value="{{$user->app_secret}}"@endif>
+        <input type="hidden"  id="lo_appkey" name="lo_appkey" @if(session('lo_appkey'))value="1"@endif>
+        <li>
+            <label>App Secret: </label>
+            <span id="userAppSecret">{{ empty($user) ? '' : $user->app_secret }}</span>
+            <span id="userAppSecretMark">{{ empty($user) ? '' : Utils::maskAllChar($user->app_secret) }}</span>
+            <a id="userAppSecretShowBtn" href="javascript:toggleUserAppSecretDisplay(1);">显示</a>
+            <a style="display: none;" id="userAppSecrethideBtn" href="javascript:toggleUserAppSecretNone();">隐藏</a>
+            <a id="userAppSecretShowBtn" href="javascript:toggleUserAppSecretDisplay(2);">重置</a>
+        </li>
+    </ul>
+</div>
+
+
+<div id="mobileAppCert" style="display: none;">
+    <h1>手机验证</h1><span class="close" onclick="javascript:hidemobileAppCert();"></span>
+    <ul>
+        <li>
+            <div class="list">
+                <div class="list">
+                    <i class="iconfont sj">&#xe608;</i>{{ Utils::maskPhone($user->mobile) }}
+                </div>
+            </div>
+        </li>
+        <li>
+            <div class="list sjyzm" id="verify">
+                <input type="hidden"  id="mobile" name="mobile" value="{{$user->mobile}}">
+                <div class="input-wrap yzm">
+                    <input type="text" class="W-input " id="verifyCode" name="verifyCode" value="">
+                    <span class="holder-tip" style="display: block;"></span>
+                    <div style="clear: both;" ></div>
+                </div>
+                <button id="sendVerifySmsButton" class="btn defaul btn-default">获取手机验证码</button>
+            </div>
+        </li>
+        <li>
+            <div class="list save">
+                <a class="btn fit  defaul btn-red" id="button-mobile" role="button">下一步</a>
+                <a class="btn fit  defaul btn-red" id="button-res" role="button">下一步</a>
+            </div>
+        </li>
+    </ul>
+</div>
+@endsection
+

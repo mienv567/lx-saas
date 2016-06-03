@@ -1,0 +1,183 @@
+<?php
+
+/*
+|--------------------------------------------------------------------------
+| Routes File
+|--------------------------------------------------------------------------
+|
+| Here is where you will register all of the routes in an application.
+| It's a breeze. Simply tell Laravel the URIs it should respond to
+| and give it the controller to call when that URI is requested.
+|
+ */
+
+//Route::get('/home', 'IndexController@home');
+
+/*
+|--------------------------------------------------------------------------
+| Application Routes
+|--------------------------------------------------------------------------
+|
+| This route group applies the "web" middleware group to every route
+| it contains. The "web" middleware group is defined in your HTTP
+| kernel and includes session state, CSRF protection, and more.
+|
+ */
+
+Route::group(['middleware' => ['web']], function () {
+
+    Route::auth();
+
+    Route::get('/', 'IndexController@index');
+
+    # 登陆
+    Route::get('login', array('as' => 'auth.login', 'uses' => 'Auth\AuthController@getLogin'));
+    Route::post('login', array('as' => 'auth.login.post', 'uses' => 'Auth\AuthController@postLogin'));
+    Route::get('logout', array('as' => 'auth.logout', 'uses' => 'Auth\AuthController@getLogout'));
+    # 找回密码
+    Route::get('password/forget', array('as' => 'auth.password.forget', 'uses' => 'Auth\PasswordController@getForget'));
+    Route::post('password/forget', array('as' => 'auth.password.forget.post', 'uses' => 'Auth\PasswordController@postForget'));
+    Route::post('password/verify', array('as' => 'auth.password.verify.post', 'uses' => 'Auth\PasswordController@postVerify'));
+    Route::get('password/reset', array('as' => 'auth.password.reset', 'uses' => 'Auth\PasswordController@getReset'));
+    Route::post('password/reset', array('as' => 'auth.password.reset.post', 'uses' => 'Auth\PasswordController@postReset'));
+    Route::get('password/success', array('as' => 'auth.password.success', 'uses' => 'Auth\PasswordController@getSuccess'));
+    # 注册
+    Route::get('register
+    ', ['as' => 'auth.register', 'uses' => 'Auth\AuthController@getRegister']);
+    Route::post('register', ['as' => 'auth.register.post', 'uses' => 'Auth\AuthController@postRegister']);
+
+    Route::get('captcha/{config?}', '\Mews\Captcha\CaptchaController@getCaptcha');
+
+    # api 接口
+    Route::group(['prefix' => 'api'], function () {
+        //订单生效产品失败的处理接口
+        Route::any('error_order_handle', 'Api\SaasApiController@errorOrderHandle');
+        //支付宝返回处理
+        Route::any('financial_recharge_notify/', 'Api\PayApiController@notify');
+        Route::match(['get', 'post'], 'financial_recharge_response/', 'Api\PayApiController@response');
+    });
+
+    # 云服务
+    Route::group(['prefix' => 'user'], function () {
+        Route::get('basic_data/', 'User\BasicDataController@index');
+        Route::get('finance_manage/', 'User\FinanceManageController@index');
+        //充值处理
+        Route::get('financial_recharge/', 'User\FinanceManageController@recharge');
+        Route::post('financial_recharge_detail/', 'User\FinanceManageController@rechargeDetail');
+        Route::match(['get', 'post'], 'financial_recharge_response_fail/', 'User\FinanceManageController@response');
+        Route::any('financial_recharge_handle/', 'User\FinanceManageController@rechargeHandle');
+        Route::post('financial_recharge_check/', 'User\FinanceManageController@rechargeCheck');
+        //订单处理
+        Route::get('financial_order_cancel/', 'User\FinanceManageController@orderCancel');
+        Route::match(['get', 'post'], 'financial_order_detail/', 'User\FinanceManageController@orderDetail');
+        Route::match(['get', 'post'], 'financial_pay/', 'User\FinanceManageController@orderPay');
+        Route::post('financial_pay_handle/', 'User\FinanceManageController@payHandle');
+        Route::get('financial_pay_check/', 'User\FinanceManageController@payCheck');
+        Route::get('abnormal_order_deal/', 'User\FinanceManageController@abnormalOrderDeal');
+        //订单明细、充值明细、消费明细
+        Route::get('financial_recharge_log/', 'User\FinanceManageController@rechargeLog');
+        Route::get('financial_order_log/', 'User\FinanceManageController@orderLog');
+        Route::get('financial_consume_log/', 'User\FinanceManageController@consumeLog');
+
+        Route::post('financial_account_pay/', 'User\FinanceManageController@accountPay');
+
+        Route::get('account_setting/', 'User\AccountSettingController@index');
+
+        #重新绑定手机
+        Route::get('phonebind_one/', 'User\AccountSettingController@phone_one');
+        Route::post('phonebind_verify/', 'User\AccountSettingController@phonebind_verify');
+        Route::get('phonebind_two/', 'User\AccountSettingController@phone_two');
+        Route::post('two_verify/', 'User\AccountSettingController@two_verify');
+        Route::get('phonebind_three/', 'User\AccountSettingController@phone_three');
+
+        #重绑邮箱
+        Route::get('email_one/', 'User\AccountSettingController@email_one');
+        Route::post('emailphone_verify/', 'User\AccountSettingController@emailphone_verify');
+        Route::get('email_two/', 'User\AccountSettingController@email_two');
+        Route::post('send_code/', 'User\EmailVerifyController@send_code');
+        Route::post('email_code/', 'User\AccountSettingController@email_code');
+        Route::get('email_three/', 'User\AccountSettingController@email_three');
+
+        #修改密码
+        Route::get('cpsw_one/', 'User\AccountSettingController@cpsw_one');
+        Route::post('cpswphone_verify/', 'User\AccountSettingController@cpswphone_verify');
+        Route::get('cpsw_two/', 'User\AccountSettingController@cpsw_two');
+        Route::post('cpsw_re/', 'User\AccountSettingController@cpsw_re');
+        Route::get('cpsw_three/', 'User\AccountSettingController@cpsw_three');
+
+        #用户基础信息设置
+        Route::post('account_setting', ['as' => 'account.setting.post', 'uses' => 'User\AccountSettingController@store']);
+        Route::post('avatar', ['as' => 'user.avatar', 'uses' => 'User\AccountSettingController@uploadAvatar']);
+
+        #站内信
+        Route::get('message_list/', 'User\MessageController@message_list');
+        Route::match(['get', 'post'], 'message_detail/', 'User\MessageController@message_detail');
+
+        #公告
+        Route::get('bulletin_list/', 'User\MessageController@bulletin_list');
+        Route::match(['get', 'post'], 'bulletin_detail/', 'User\MessageController@bulletin_detail');
+    });
+
+    Route::group(['prefix' => 'cloud_system'], function () {
+        /*
+        Route::get('/', 'CloudSystem\IndexController@index');
+        Route::get('/product_detail', 'CloudSystem\IndexController@productDetail');
+        Route::get('/submit_order', 'CloudSystem\IndexController@submitOrder');
+        Route::get('/myproduct', 'CloudSystem\IndexController@myproduct');
+        Route::get('/myproduct_set', 'CloudSystem\IndexController@myproductSet');
+        Route::any('/myproduct_set_save', 'CloudSystem\IndexController@myproductSetSave');
+        Route::get('/down_license', 'CloudSystem\IndexController@downLicense');
+         */
+        Route::get('/', 'CloudSystem\ProductMarketController@index');
+        Route::get('/detail', 'CloudSystem\ProductMarketController@detail');
+        Route::get('/submit_order', 'CloudSystem\ProductMarketController@submitOrder');
+        Route::get('/my', 'CloudSystem\ProductMyController@index');
+        Route::get('/mydetail', 'CloudSystem\ProductMyController@detail');
+        Route::any('/myproduct_set', 'CloudSystem\ProductMyController@productSet');
+        Route::get('/down_license', 'CloudSystem\ProductMyController@downLicense');
+    });
+
+    Route::group(['prefix' => 'cloud_platform'], function () {
+        /*
+        Route::get('/', 'CloudPlatform\IndexController@index');
+         */
+        Route::get('/', 'CloudPlatform\ProductMarketController@index');
+        Route::get('/detail', 'CloudPlatform\ProductMarketController@detail');
+        Route::get('/submit_order', 'CloudPlatform\ProductMarketController@submitOrder');
+        Route::get('/my', 'CloudPlatform\ProductMyController@index');
+        Route::get('/mydetail', 'CloudPlatform\ProductMyController@detail');
+        Route::any('/myproduct_set', 'CloudPlatform\ProductMyController@productSet');
+        Route::get('/down_license', 'CloudPlatform\ProductMyController@downLicense');
+    });
+
+    Route::group(['prefix' => 'cloud_service'], function () {
+        Route::get('/', 'CloudService\WeixinInfoController@index');
+        Route::get('weixin_info/', 'CloudService\WeixinInfoController@index');
+
+        Route::post('weixin_info_remove/', 'CloudService\WeixinInfoController@account_remove');
+
+        Route::get('weixin_get_auth_code/', 'CloudService\WeixinInfoController@platform_get_auth_code');
+
+        Route::get('weixin_gz_accept/', 'CloudService\WeixinInfoController@gz_accept');
+        Route::post('weixin_gz_accept/', 'CloudService\WeixinInfoController@gz_accept');
+
+        Route::get('weixin_create_url/', 'CloudService\WeixinGetController@create_url');
+        Route::post('weixin_create_url/', 'CloudService\WeixinGetController@create_url');
+
+        Route::any('flow_red/', array('as' => 'cloud_service.flow_red.index', 'uses' => 'CloudService\FlowRedController@index'));
+        Route::get('flow_red/add', array('as' => 'cloud_service.flow_red.add', 'uses' => 'CloudService\FlowRedController@add'));
+        Route::post('flow_red/add', array('as' => 'cloud_service.flow_red.add.post', 'uses' => 'CloudService\FlowRedController@store'));
+        Route::get('flow_red/edit', array('as' => 'cloud_service.flow_red.edit', 'uses' => 'CloudService\FlowRedController@edit'));
+        Route::post('flow_red/edit', array('as' => 'cloud_service.flow_red.edit.post', 'uses' => 'CloudService\FlowRedController@update'));
+        Route::get('flow_red/recharge', array('as' => 'cloud_service.recharge', 'uses' => 'CloudService\FlowRedController@recharge'));
+        Route::post('flow_red/recharge', array('as' => 'cloud_service.recharge.post', 'uses' => 'CloudService\FlowRedController@recharge_update'));
+    });
+
+});
+
+Route::group(['prefix' => 'cloud_service'], function () {
+
+    Route::get('weixin_info_accept/', 'CloudService\WeixinInfoController@accept');
+    Route::post('weixin_info_accept/', 'CloudService\WeixinInfoController@accept');
+
+});

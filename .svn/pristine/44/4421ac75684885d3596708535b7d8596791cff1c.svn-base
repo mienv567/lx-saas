@@ -1,0 +1,525 @@
+<?php
+
+namespace App\Http\Controllers\User;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Response, Storage;
+use Redirect;
+use Auth;
+use Validator;
+use App\Models\User;
+use Illuminate\Support\Facades\Session;
+use App\Saas\SAASUtil;
+use App\Saas\LicenseManager;
+use Log;
+use DBLog;
+/**
+ * 企业用户账号设置控制器类
+ */
+class AccountSettingController extends Controller
+{
+    
+    /**
+     * 构造函数
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
+    /**
+     * 显示首页
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index(Request $request)
+    {
+        // 获取公司账号信息
+        $account = User::find(Auth::id());
+        Session::forget("re");
+        if(!empty($account['photo'])){
+            $account['photo'] = asset($account['photo']);
+        }else{
+            $account['photo'] = asset('res/images/head_deafaul.png');
+        }
+
+        return view('user.account_setting', compact('account'));
+    }
+
+
+    /**
+     * 保存账号信息
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'company_name' => 'required',
+            'county_id' => 'required',
+        ],[
+            'county_id.required' => '必须选择区县'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+
+        $account = User::find(Auth::id());
+        $account->company_name = $request->input('company_name');
+        $account->company_address = $request->input('company_address');
+        $account->company_phone = $request->input('company_phone');
+        $account->company_area_id = $request->input('county_id');
+        $account->save();
+
+        return response()->json(
+            array(
+                'err' => 0,
+                'msg' => '更新成功'
+            )
+        );
+    }
+
+    /**
+     * 头像上传
+     *
+     * @param Request $request
+     */
+    public function uploadAvatar (Request $request){
+        $user_id = Auth::id();
+
+        $allowed_extensions = ["png", "jpg", "gif"];
+        if ($request->file->getClientOriginalExtension() && !in_array($request->file->getClientOriginalExtension(), $allowed_extensions)) {
+            return response()->json(
+                array(
+                    'error' => true,
+                    'message' => '更新失败,只能上传jpg,png,gif图片格式'
+                )
+            );
+        }
+        $destinationPath = 'avatar/'.substr(sprintf("%09d", $user_id), 0, 3) . '/';
+        $extension = $request->file->getClientOriginalExtension();
+        $fileName = $user_id . '.' . $extension;
+        //$request->file->move($destinationPath, $fileName);
+        try {
+            Storage::put(
+                $destinationPath.$fileName,
+                file_get_contents($request->file->getRealPath())
+            );
+
+        } catch (FileException $e) {
+            return Response::json([
+                'error'   =>true,
+                'message' =>$e->getmessage()
+            ]);
+
+        }
+
+        // 更新数据
+        $account = User::find($user_id);
+        $account->photo = 'uploads/'.$destinationPath.$fileName;
+        $account->save();
+
+        return response()->json(
+            [
+                'error' => 0,
+                'avatar' => asset($destinationPath.$fileName)
+            ]
+        );
+
+    }
+
+    public function phone_one()
+    {
+        $account = User::find(Auth::id());
+        return view('user.phonebind_one', compact('account'));
+    }
+
+    public function phonebind_verify(Request $request)
+    {
+        // 账号是通过手机注册，所以至少保证是有手机号码。暂时仅支持通过手机找回密码
+        $account = User::find(Auth::id());
+        if($account->mobile){  //已绑定手机的情况下
+            $validator = Validator::make($request->only(['verifyCode']), [
+                'verifyCode' => 'required|verify_code',
+            ], [
+                'verifyCode.required' => '验证码不能为空',
+                'verifyCode.verify_code' => '验证码错误',
+            ]);
+        }else{ //未绑定手机的情况
+            $validator = Validator::make($request->only(['password']), [
+                'password' => 'required|password_r',
+            ], [
+                'password.required' => '请填写密码',
+                'password.password_r' => '密码错误',
+            ]);
+        }
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+        Session::forget("laravel_sms_info");  //注销掉验证码 否则下一步60秒内无法发送验证码
+        $data['mobile'] = 1;
+        session(['re' => $data]);//设置 无法让用户之间跳转
+        return response()->json(
+            array(
+                'err' => 0,
+                'redirect' => url('user/phonebind_two')
+            )
+        );
+    }
+
+
+
+    public function phone_two()
+    {
+        if(!(session('re')['mobile'])){
+            return Redirect::to(url('user/phonebind_one'));
+        }
+        $account = User::find(Auth::id());
+
+        return view('user.phonebind_two', compact('account'));
+    }
+
+
+
+    public function two_verify(Request $request)
+    {
+        // 账号是通过手机注册，所以至少保证是有手机号码。暂时仅支持通过手机找回密码
+        $validator = Validator::make($request->only(['verifyCode','mobile']), [
+            'mobile' => 'required|zh-mobile|unique:saas_user',
+            'verifyCode' => 'required|verify_code',
+        ], [
+            'mobile.required' => '手机号不能为空',
+            'mobile.zh-mobile' => '手机格式有误',
+            'verifyCode.required' => '验证码不能为空',
+            'verifyCode.verify_code' => '验证码错误',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+        $account = User::find(Auth::id());
+        $account->mobile =  $username = $request->input('mobile');
+        $account->save();
+        return response()->json(
+            array(
+                'err' => 0,
+                'redirect' => url('user/phonebind_three')
+            )
+        );
+    }
+
+
+    public function phone_three()
+    {
+        if(!(session('re')['mobile'])){
+            return Redirect::to(url('user/phonebind_one'));
+         }
+        $account = User::find(Auth::id());
+
+        return view('user.phonebind_three', compact('account'));
+    }
+
+
+    public function email_one()
+    {
+        $account = User::find(Auth::id());
+        return view('user.emailbind_one', compact('account'));
+    }
+
+
+    public function emailphone_verify(Request $request)
+    {
+        // 账号是通过手机注册，所以至少保证是有手机号码。暂时仅支持通过手机找回密码
+        $validator = Validator::make($request->only(['verifyCode']), [
+            'verifyCode' => 'required|verify_code',
+        ], [
+            'verifyCode.required' => '验证码不能为空',
+            'verifyCode.verify_code' => '验证码错误',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+
+        Session::forget("laravel_sms_info");  //注销掉验证码 否则下一步60秒内无法发送验证码
+        $data['email'] = 1;
+        session(['re' => $data]);//设置 无法让用户之间跳转
+        return response()->json(
+            array(
+                'err' => 0,
+                'redirect' => url('user/email_two')
+            )
+        );
+    }
+
+
+
+    public function email_two()
+    {
+        if(!(session('re')['email'])){
+            return Redirect::to(url('user/email_one'));
+         }
+        $account = User::find(Auth::id());
+
+        return view('user.emailbind_two', compact('account'));
+    }
+
+    public function email_code(Request $request)
+    {
+        // 账号是通过手机注册，所以至少保证是有手机号码。暂时仅支持通过手机找回密码
+        $validator = Validator::make($request->only(['email','verifyCode']), [
+            'email' => 'required|email|unique:saas_user',
+            'verifyCode' => 'required',
+        ], [
+            'email.required' => '邮箱不能为空',
+            'email.email' => '邮箱格式有误',
+            'verifyCode.required' => '验证码不能为空',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+        $input = $request->all();
+        if(session('laravel_email_info')['code']!=$input['verifyCode']){
+            $data['err'] = 1;
+            $data['msg']['verifyCode'] = "验证码错误";
+            return response()->json(
+                $data
+            );
+        }
+       if(session('laravel_email_info')['email']!=$input['email']){
+            $data['err'] = 1;
+            $data['msg']['email'] = "邮箱不一致";
+            return response()->json(
+               $data
+            );
+        }
+        $now = time();
+        if(session('laravel_email_info')['deadline_time']<$now){
+            session('laravel_email_info')['code'] = "";
+        }
+        $account = User::find(Auth::id());
+        $account->email =  $username = $request->input('email');
+        $account->save();
+        return response()->json(
+            array(
+                'err' => 0,
+                'redirect' => url('user/email_three')
+            )
+        );
+    }
+
+
+
+    public function email_three()
+    {
+        if(!(session('re')['email'])){
+            return Redirect::to(url('user/email_one'));
+        }
+        $account = User::find(Auth::id());
+
+        return view('user.emailbind_three', compact('account'));
+    }
+
+
+
+
+    public function cpsw_one(){
+
+        $account = User::find(Auth::id());
+        return view('user.changepassword_one', compact('account'));
+
+    }
+
+
+
+    public function cpswphone_verify(Request $request)
+    {
+        // 账号是通过手机注册，所以至少保证是有手机号码。暂时仅支持通过手机找回密码
+        $validator = Validator::make($request->only(['verifyCode']), [
+            'verifyCode' => 'required|verify_code',
+        ], [
+            'verifyCode.required' => '验证码不能为空',
+            'verifyCode.verify_code' => '验证码错误',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+
+        Session::forget("laravel_sms_info");  //注销掉验证码 否则下一步60秒内无法发送验证码
+        $data['cpsw'] = 1;
+        session(['re' => $data]);//设置 无法让用户之间跳转
+        return response()->json(
+            array(
+                'err' => 0,
+                'redirect' => url('user/cpsw_two')
+            )
+        );
+    }
+
+
+
+    public function cpsw_two()
+    {
+        if(!(session('re')['cpsw'])){
+            return Redirect::to(url('user/cpsw_one'));
+        }
+        $account = User::find(Auth::id());
+
+        return view('user.changepassword_two', compact('account'));
+    }
+
+
+
+    public function cpsw_re(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'password' => 'required|confirmed|min:6|password_geshi',
+        ], [
+            'password.password_geshi' => '必须是数字与字母的组合',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+        $account = User::find(Auth::id());
+        $account->password = bcrypt($request->input('password'));
+        $account->save();
+        return response()->json(
+            array(
+                'err' => 0,
+                'redirect' => url('user/cpsw_three')
+            )
+        );
+    }
+
+
+
+    public function cpsw_three(){
+        if(!(session('re')['cpsw'])){
+            return Redirect::to(url('user/cpsw_one'));
+        }
+        $account = User::find(Auth::id());
+        return view('user.changepassword_three', compact('account'));
+    }
+
+
+    public function showAppCert(Request $request){
+        // 账号是通过手机注册，所以至少保证是有手机号码。暂时仅支持通过手机找回密码
+        $validator = Validator::make($request->only(['verifyCode']), [
+            'verifyCode' => 'required|verify_code',
+        ], [
+            'verifyCode.required' => '验证码不能为空',
+            'verifyCode.verify_code' => '验证码错误',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+        Session::forget("laravel_sms_info");  //注销掉验证码
+        session(['lo_appkey' => 1]);
+        $account = User::find(Auth::id());
+        return response()->json(
+            array(
+                'err' => 0,
+                'appkey' => $account->app_secret
+            )
+        );
+
+    }
+
+
+
+
+    public function resAppCert(Request $request)
+    {
+        // 账号是通过手机注册，所以至少保证是有手机号码。暂时仅支持通过手机找回密码
+        $validator = Validator::make($request->only(['verifyCode']), [
+            'verifyCode' => 'required|verify_code',
+        ], [
+            'verifyCode.required' => '验证码不能为空',
+            'verifyCode.verify_code' => '验证码错误',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag(),
+                )
+            );
+        }
+        $account = User::find(Auth::id());
+        $appSecret = SAASUtil::makeAppSecret();
+        $account->app_secret = $appSecret;
+        $res = $account->save();
+        $licenses = $account->use_app_licenses()->get();
+        $manager = new LicenseManager;
+        foreach ($licenses as $license) {
+            $ret = $manager->recreateLicense($license->id);
+            if ($ret['errcode'] != 0) {
+                $message = '重新生成授权文件内容失败，errcode: '.$ret['errcode'].'，errmsg: '.$ret['errmsg'].'，license_id: '.$license->id;
+                Log:error($message);
+                DBLog:error($message);
+            }
+        }
+        if ($res) {
+            Session::forget("laravel_sms_info");  //注销掉验证码
+            return response()->json(
+                array(
+                    'err' => 0,
+                )
+            );
+        }
+
+    }
+
+
+
+}

@@ -1,0 +1,248 @@
+<?php $_fw_MenuIndex = 1; ?>
+@extends('layouts.base_system')
+
+@section('styles')
+<link rel="stylesheet" type="text/css" href="{{ url('res/css/system_detail.css') }}" />
+<link rel="stylesheet" type="text/css" href="{{ url('res/css/system_detail_extra.css') }}" />
+@endsection
+
+@section('scripts')
+<script type="text/javascript" src="{{ url('res/js/my_detail.js') }}"></script>
+@endsection
+
+@section('content')
+<div class="content">
+<div class="tree-title">
+<span><i class="iconfont">&#xe605;</i>当前位置>{{ $_fw_AppTypeName or '' }}><em>产品设置</em></span>
+</div>
+
+<div class="tree-content system_detail">
+@if (empty($userProduct))
+<div class="m-withe system_detailtit">
+    该应用产品不存在或还未购买！
+</div>
+@else
+<input id="userProductId" type="hidden" value="{{ $userProduct->id or "" }}" />
+<div class="m-withe system_detailtit">
+    <div class="productimgbox"><img alt="" src="{{ empty($userProduct->product->main_image) ? url('res/images/indexhead.png') : $userProduct->product->main_image }}"> </div>
+    <div class="f_l system_detailinfo">
+        <h1>{{ $userProduct->product_name or '' }} - {{ $userProduct->sale_item_name or '' }}</h1>
+        <h2>{{ $userProduct->product->brief_introduce or '' }}</h2>
+        <div class="detaillistbox">
+        <div class="detaillist">
+            <label>授权信息：</label>
+<?php
+$buyInfo = empty($userProduct->buy_info) ? null : json_decode($userProduct->buy_info);
+$licenseDomainCount = 0;
+$licenseMonthCount = 0;
+$licenseFuncPackage = '';
+if (!empty($buyInfo)) {
+    $licenseDomainCount = empty($buyInfo->license_domain_count) ? 0 : intval($buyInfo->license_domain_count);
+    $licenseMonthCount = empty($buyInfo->license_month_count) ? 0 : intval($buyInfo->license_month_count);
+    $licenseFuncPackage = empty($buyInfo->license_func_package) ? '' : $buyInfo->license_func_package;
+}
+?>
+            <ul>
+               <li class="domains">授权<strong>{{ $licenseDomainCount or '' }}</strong>个域名</li>
+               <input id="licenseDomainCount" type="hidden" value="{{ $licenseDomainCount or '' }}" />
+               <li class="split">|</li>
+    @if ($licenseMonthCount > 0)
+               <li class="months">授权<strong>{{ $licenseMonthCount or '' }}</strong>个月</li>
+    @else
+               <li class="months">不限授权期限</li>
+    @endif
+    @if (!empty($licenseFuncPackage))
+               <li class="split">|</li>
+               <li class="package">功能套餐号：{{ $licenseFuncPackage or '' }}</li>
+    @endif
+            </ul>
+        </div>
+        <div class="detaillist">
+            <label>购买时间：</label>
+            {{ date('Y-m-d H:i:s', strtotime($userProduct->created_at)) }}
+        </div>
+        <div class="detaillist">
+            <label>到期时间：</label>
+    @if ($licenseMonthCount > 0)
+            {{ date('Y-m-d H:i:s', strtotime('+'.$licenseMonthCount.' month', strtotime($userProduct->created_at))) }}
+    @else
+            永不过期
+    @endif
+        </div>
+        <div class="detaillist">
+    @if (!isset($userProduct->license) || empty($userProduct->license))
+        @if ($userProduct->product_type == 2)
+            <label>授权文件：</label>
+            <span id="licensefile"><span class="nolicense">授权文件未生成 <a class="a-link" href="javascript:createCloudPlatformLicense()">[生成授权]</a></span></span>
+        @else
+            <label>授权文件：</label>
+            <span id="licensefile"><span class="nolicense">授权文件未生成，请通过“产品设置”来生成</span></span>
+        @endif
+    @else
+        @if ($userProduct->product_type == 2)
+            <!--
+            <label>授权文件：</label>
+            <span id="licensefile"><a class="a-link" href="javascript:createCloudPlatformLicense()">更新授权</a></span></span>
+            -->
+        @else
+            <label>授权文件：</label>
+            <span id="licensefile"><a class="a-link" href="down_license?id={{ $userProduct->license->id or '' }}" role="button" target="_blank">下载</a></span>
+        @endif
+    @endif
+        </div>
+        </div>
+    </div>
+    <div class="blank0"></div>
+</div>
+<div class="blank10"></div>
+<div class="m-withe">
+    <div class="system_tit">
+    <ul class="tab">
+    <li class="first active" rel="1"><a href="javascript:void(0);">产品设置</a></li>
+    <li class="" rel="2"><a href="javascript:void(0);">服务详情</a></li>
+    <li class="" rel="3"><a class="" href="javascript:void(0);">使用教程</a></li>
+    <li class="" rel="4"><a class="" href="javascript:void(0);">订购记录</a></li>
+    </ul>
+    <div class="blank0"></div>
+    </div>
+    <div class="system_detail_content">
+        <div class="tabcontent tab_setting active" rel="1">
+    @if ($userProduct->product_type == 2) {{-- product_type start --}}
+        <?php
+        $user = Auth::user();
+        $defaultDomain = $user->id.'.'.(empty($userProduct->product) ? '' : $userProduct->product->main_domain);
+        $className = (empty($userProduct->product) ? '' : $userProduct->product->class_name);
+        $serviceUrl = 'http://'.$defaultDomain;
+        if (!empty($className)) {
+            $classFullName = 'App\Api\Product\\'.ucfirst($className);
+            $productHander = new $classFullName();
+            $serviceUrl = $productHander->makeServiceUrl($user, $defaultDomain);
+        }
+        ?>
+            <div id="domainSetInput" class="pad20 detaillistbox cppzlist">
+                <div class="redtit">
+                    <span>授权域名</span>
+                </div>
+                <div class="detaillist adddomain error">
+                    <label>服务地址：</label>
+                    <span><a class="a-link" href="{{ $serviceUrl or '' }}" target="_blank">http://{{ $defaultDomain or '' }}</a></span>
+                    <div class="blank0"></div>
+                </div>
+            </div>
+    @else {{-- product_type else --}}
+            <div id="domainSetInput" class="pad20 detaillistbox cppzlist">
+                <div class="redtit">
+                    <span>授权域名设置</span>
+                </div>
+                <div class="detaillist adddomain error">
+                    <label>添加域名：</label>
+                    <div class="input-wrap f_l">
+                        <input type="text" class="W-input " id="domain" name="" value="">
+                        <span class="holder-tip"></span>
+                    </div>
+                    <a class="btn defaul btn-red btnadddomain f_l" href="javascript:addDomain()" role="button">添加</a>
+                    <div class="tip" style="display:none;"><i class="iconfont"></i><span>请输入正确的域名</span></div>
+                    <div class="blank0"></div>
+                </div>
+            </div>
+<?php
+$settingInfo = empty($userProduct->setting_info) ? null : json_decode($userProduct->setting_info);
+$licenseInfo = null;
+$coreConfigInfo = null;
+if (!empty($settingInfo)) {
+    $licenseInfo = isset($settingInfo->licenseInfo) ? $settingInfo->licenseInfo : null;
+    $coreConfigInfo = isset($settingInfo->coreConfigInfo) ? $settingInfo->coreConfigInfo : null;
+}
+?>
+            <div id="domainSetList" class="sqtable">
+                <table class="table table-hover">
+                <thead>
+                    <tr>
+                      <th width="70%">域名授权</th>
+                      <th width="30%">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+    @if (!empty($licenseInfo) && !empty($licenseInfo->domains) && count($licenseInfo->domains) > 0 )
+<script type="text/javascript">var _OriginDomainCount = {{ count($licenseInfo->domains) }};</script>
+        @foreach ($licenseInfo->domains as $domain)
+                    <tr>
+                      <td class="domain">{{ $domain }}</td>
+                      <td class="operation">&nbsp;</td>
+                    </tr>
+        @endforeach
+    @else
+<script type="text/javascript">var _OriginDomainCount = 0;</script>
+    @endif
+                </tbody>
+                </table>
+            </div>
+<?php
+$coreConfigItemJson = empty($userProduct->product) ? null : $userProduct->product->core_config_item;
+$coreConfigItems = empty($coreConfigItemJson) ? array() : json_decode($coreConfigItemJson);
+?>
+            <div id="coreConfigSet" class="pad20 detaillistbox cppzlist">
+                <div class="redtit">
+                    <span>系统参数设置</span>
+                </div>
+    @foreach ($coreConfigItems as $coreConfigItem)
+                <div id="_cc_{{ $coreConfigItem->name or '' }}" class="detaillist ">
+                    <label>{{ $coreConfigItem->caption }}：</label>
+                    <div class="input-wrap f_l {{  $coreConfigItem->inputtype == 'select' ? 'input-wrap-select' : '' }}">
+        @if ($coreConfigItem->inputtype == 'select')
+                        <select id="_cc_{{ $coreConfigItem->name or '' }}" name="{{ $coreConfigItem->name or '' }}" value="{{ $coreConfigItem->value or '' }}" need="{{ $coreConfigItem->required or '' }}">
+            @if (isset($coreConfigItem->inputitems))
+                @foreach ($coreConfigItem->inputitems as $item)
+                            <option value="{{ $item->value or '' }}">{{ $item->text or '' }}<option>
+                @endforeach
+            @endif
+                        </select>
+        @else
+                        <input id="_ccinput_{{ $coreConfigItem->name or '' }}" name="{{ $coreConfigItem->name or '' }}" type="{{ $coreConfigItem->inputtype == 'number' ? 'number' : 'text' }}" class="W-input " value="{{ $coreConfigItem->value or '' }}" need="{{ $coreConfigItem->required or '' }}">
+        @endif
+                        <span class="holder-tip"></span>
+                    </div>
+                    <span class="tip" style="display:none;"><i class="iconfont"></i><span>此信息项必须填写</span></span>
+                    <div class="blank0"></div>
+                </div>
+    @endforeach
+    @if (!empty($coreConfigInfo))
+<script type="text/javascript">
+var ccInitValues = [];
+        @foreach ($coreConfigInfo as $key=>$value)
+            @if (!empty($key))
+ccInitValues["{{ $key or ''}}"] = "{{ $value or '' }}";
+            @endif
+        @endforeach
+</script>
+    @endif
+                <!--
+                <div class="detaillist ">
+                    <a class="btn defaul btn-red btnadddomain" href="#" role="button">确认配置</a>
+                </div>
+                -->
+                <div class="blank15"></div>
+            </div>
+            <div class="submitfoot pad20">
+                <div class="submitfoot2">
+                    <button id="saveConfigButton" type="button" class="btn defaul btn-red btnadddomain" onclick="saveProductSet()">保存配置</button>
+                </div>
+            </div>
+    @endif {{-- product_type end --}}
+        </div><!-- rel=1 -->
+        <div class="tabcontent" rel="2">
+{!! $userProduct->product->detail_introduce or '' !!}
+        </div><!-- rel=2 -->
+        <div class="tabcontent" rel="3">
+{!! $userProduct->product->use_course or '' !!}
+        </div><!-- rel=3 -->
+        <div class="tabcontent" rel="4">
+            &nbsp;
+        </div><!-- rel=4 -->
+       
+    </div>
+</div><!--m-withe end-->
+@endif
+</div><!--tree-content end-->
+</div><!-- content end-->
+@endsection

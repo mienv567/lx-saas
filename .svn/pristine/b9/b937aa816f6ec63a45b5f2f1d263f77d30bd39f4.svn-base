@@ -1,0 +1,87 @@
+@extends('layouts.auth')
+
+@section('styles')
+<link rel="stylesheet" type="text/css" href="{{asset('res/css/forgetpassword_s1.css')}}" />
+@endsection
+
+@section('content')
+
+  <div class="wrap">
+  <div class="forgetpassword">
+    <div class="title">
+       <span>重置密码</span>
+    </div>
+      <div class="forgetpasswordbox">
+      <form id="form-register" method="POST" action="{{ url('/password/find') }}" class="form">
+      {!! csrf_field() !!}
+      <input type="hidden" value="2" name="step">
+        <div class="list spcl">
+          <h1>为了账号安全，需要验证手机有效性</h1>
+          <em class="fc999">一条包含有验证码的短信已经发送至手机：</em><br>
+          <em class="f_bluecolor">18456213654</em>
+        </div>
+       <!--  <div class="list spcl">
+          <h1>为了账号安全，需要验证邮箱有效性</h1>
+          <em class="fc999">一封包含有验证码的邮件已经发送至邮箱：</em><br>
+          <em class="f_bluecolor">lynn314@qq.com</em>
+        </div> -->
+        <div class="list sjyzm">
+          <label>验证码</label>
+          <div class="input-wrap yzm">
+              <input type="hidden" id="mobile" name="mobile" value="13635237420">
+              <input type="text" class="W-input " id="verifyCode" name="verifyCode" value="">
+              <span class="holder-tip" style="display: block;"></span>
+          </div>
+          <button id="sendVerifySmsButton" class="btn defaul btn-default">获取验证码</button>
+          <div class="tip"><i class="iconfont">&#xe612;</i><span>请输入正确的短信验证码</span></div>
+        </div>
+        <div class="list">
+          <em class="fc999">如果一段时间没有收到，请重新获取</em>
+        </div>
+          <button id="agree" class="btn fit defaul btn-blue" type="submit">下一步</button>
+      </form>
+      </div>
+  </div>
+  </div>
+
+
+
+@endsection
+
+@section('scripts')
+<script type='text/javascript' src='{{asset('res/js/send-sms2.js')}}' charset='utf-8'></script>
+<script>
+
+$('#sendVerifySmsButton').sms({
+    token          : "{{csrf_token()}}",
+
+    //json api token
+    apiToken       : '',
+
+    mobileSelector : 'input[name="mobile"]',
+
+    //手机号必填
+    mobileRule     : 'check_mobile_exists',
+
+    voice          : false,
+
+    domain : FW.DOMAIN,
+
+    alertMsg       :  function (msg, type) {
+        $('.tip').remove();
+        if(type == 'validation_captcha'){
+            $('#captcha').parent().parent().addClass('error');
+            $('#captcha').parent().parent().append('<div class="tip"><i class="iconfont">&#xe612;</i><span>' + msg + '</span></div>');
+        }else if(type == 'mobile_required'){
+            $('#mobile').parent().parent().addClass('error');
+            $('#mobile').parent().parent().append('<div class="tip"><i class="iconfont">&#xe612;</i><span>' + msg + '</span></div>');
+        }else{
+            $('#verifyCode').parent().parent().addClass('error');
+            $('#verifyCode').parent().parent().append('<div class="tip"><i class="iconfont">&#xe612;</i><span>' + msg + '</span></div>');
+        }
+    }
+});
+
+
+</script>
+@endsection

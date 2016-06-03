@@ -1,0 +1,48 @@
+<?php $_fw_MenuIndex = 1;?>
+@extends('layouts.base')
+@section('styles')
+<link rel="stylesheet" type="text/css" href="../res/css/m_financial_recharge.css" />
+@endsection
+
+@section('scripts')
+<script type='text/javascript' src='{{asset('res/js/jquery.dateinputpack.js')}}' charset='utf-8'></script>
+<script type="text/javascript">
+$(document).ready(function(){
+    $(".rechargestyle .rechargebox").bind("click",function(){
+        $(this).siblings(".rechargebox").removeClass("active");
+        $(this).addClass("active");
+    });
+});
+</script>
+
+@endsection
+
+@section('content')
+<body>
+<div class="content">
+<div class="tree-title">
+<span><i class="iconfont">&#xe605;</i>当前位置>首页>财务管理><em>充值成功</em></span>
+</div>
+
+<div class="tree-content">
+<div class="m-withe">
+
+<div class="successpadding">
+  <div class="successbk">
+    <i class="iconfont f_greencolor">&#xe610;</i>
+    <h4>充值成功，金额已转入账户余额</h4>
+    <h6>您已成功转入{{ $payment->pay_money }}元至账户余额。</h6>
+    <h6>充值单号：{{ $payment->payment_no }}<span></span>充值金额：{{ $payment->pay_money }}元<span></span>操作时间：{{ $payment->dealPaytime() }}</h6>
+    <form action="{{ url('user/financial_recharge_detail') }}" method="post">
+        <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+        <input type="hidden" name="payment_id" value="{{ $payment->id }}"></input>
+        <input class="btn line btn-default lookdetail" type="submit" value="查看充值详情"></input>
+    </form>
+  </div>
+</div><!-- successpadding end -->
+
+</div>
+
+</div>
+</body>
+@endsection

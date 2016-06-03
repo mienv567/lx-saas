@@ -1,0 +1,188 @@
+<?php $_fw_MenuIndex = 1;?>
+@extends('layouts.base')
+@section('styles')
+<link rel="stylesheet" type="text/css" href="../res/css/system_payment.css" />
+@endsection
+
+@section('scripts')
+<script type="text/javascript">
+function checkbox(key){
+  var check = document.getElementById('checkbox-' + key);
+  if (check.checked) {
+    $('#w-input-' + key).attr("value",{{ round($order->order_money - $order->pay_money,2) }});
+    $('#div-checkbox-'+key).append('<input type="hidden" name="payForAccount"></input>');
+  } else {
+    $('#w-input-' + key).attr("value",0);
+    $('#div-checkbox-'+key).empty();
+  }
+}
+
+function handlePay(key) {
+  $.ajax({
+    url: '{{ url('user/financial_pay_handle') }}',
+    type:'POST',
+    data:$("#form_" + key).serialize(),
+    dataType: "json",
+    success:function(data){
+      if (data.status == 0) {
+          $(".form_hidden").html(data.code);
+          $(".form_hidden form").submit();
+      }
+      if (data.status == 1) {
+        window.location.reload();
+      }
+      if (data.status == 2) {
+        $('.salesprice').replaceWith('<em class="salesprice">'+data.amount+'</em>');
+        alertWarn(data.note);
+      }
+      if (data.status == 4) {
+        alertWarn(data.note);
+      }
+    }
+  });
+}
+
+function orderPayConfirm(key,orderId) {
+  // handlePay(key);
+  var value = document.getElementById("w-input-"+key).value;
+  var reg = /^\d{1,8}(\.\d{1,2})?$/;
+
+  if (value != '' || value !=0) {
+    if(!reg.test(value)) {
+      alertWarn('支付余额');
+      document.getElementById("w-input-"+key).value = 0;
+      return ;
+    }
+    if (value > {{ $order->order_money }}) {
+      alertWarn('你输入金额大于商品金额,请重新输入正确金额');
+      document.getElementById("w-input-"+key).value = 0;
+      return ;
+    } else if (value > {{ $account }} ) {
+      alertWarn('你输入金额大于你的账户余额,请重新输入正确金额');
+      document.getElementById("w-input-"+key).value = 0;
+      return;
+    }
+  }
+  $("#form_" + key).submit();
+  var content = '<p class="ml1"> 请您在新打开的页面完成付款。</p>'
+              + '<p class="ml2 f_redcolor"> 付款完成前请不要关闭此窗口。</p>'
+              + '<p> 完成付款后请根据您的情况点击下面的按钮：</p>'
+              ;
+  alertConfirm(
+    content,
+    function(){
+      window.location.href="{{ url('user/financial_pay_check') }}?order_id="+orderId;
+    },
+    {okButtonText: '已完成付款', cancelButtonText: '重新发起支付'}
+  );
+}
+</script>
+
+@endsection
+
+@section('content')
+<body>
+  <div class="content">
+    <div class="tree-title">
+    <span><i class="iconfont">&#xe605;</i>当前位置>财务管理><em>支付页面</em></span>
+    </div>
+    <div class="tree-content system_payment">
+    <div class="m-withe">
+        <div class="redtit">
+            <span>选购商品</span>
+        </div>
+        <div class="paymentlist">
+        <table class="table table-hover">
+        <thead>
+            <tr>
+              <th width="45%">产品信息</th>
+              <th width="10%">总金额</th>
+              <th width="10%">已付金额</th>
+              <th width="10%">应付金额</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+              <td>{{$order->order_topic}}</td>
+              <td class="f_redcolor">￥<em>{{ $order->order_money }}</em></td>
+              <td class="f_redcolor">￥<em>{{ $order->pay_money }}</em></td>
+              <td class="f_redcolor">￥<em>{{ round($order->order_money - $order->pay_money,2) }}</em></td>
+            </tr>
+        </tbody>
+        </table>
+        </div>
+        <div class="form_hidden" style="display:none"></div>
+        <div class="redtit">
+            <span>选择支付方式</span>
+        </div>
+         <div class="paymenttab">
+
+            <div class="rechargetab">
+              <ul class="tab">
+                @foreach ($paymentTypes as $key => $paymentType)
+                <li class="@if ($key == 0) active first @endif" rel="{{ $paymentType->id }}"><a href="javascript:void(0);">{{ $paymentType->name }}支付</a></li>
+                @endforeach
+              </ul>
+            </div>
+            <div class="rechargetabcontent">
+              @foreach ($paymentTypes as $key => $paymentType)
+              <form id="form_{{ $key }}" method="POST" action="{{ url('user/financial_pay_handle')}}" target="_blank">
+                <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+                <div id="div-checkbox-{{ $key }}" style="display:none"></div>
+                <input type="hidden" name="payForAccount"></input>
+                <input type="hidden" name="paymentTypeId" value="{{ $paymentType->id }}">
+                <input type="hidden" name="orderId" value="{{$order->id}}">
+                <input type="hidden" name="orderPayMoney" value="{{ round($order->order_money - $order->pay_money,2) }}">
+                <div class="tabcontent @if ($key == 0) active @endif" rel="{{ $paymentType->id }}">
+                  <div class="rechargestyle">
+                    {!! $paymentType->getDisplayCode() !!}
+                    <div class="blank0"></div>
+                  </div>
+                  <div class="warmtip">
+                    <h1>温馨提示:</h1>
+                    <ul>
+                      <li>1、通过信用卡的快捷支付有500元限制，超过500元时您可以选择其他支付方式。</li>
+                      <li class="f_redcolor">2、如您有欠费账单，充值后会优先补扣欠费账单。</li>
+                      <li>3、充值后请及时对支付订单进行结算，以免影响正常服务。</li>
+                    </ul>
+                  </div>
+                </div>
+                <div class="yezf">
+                    <div class="detaillist">
+                        <label>账户余额：</label>
+                        <div class="f_redcolor">￥<em class="salesprice">{{ $account }}</em></div>,
+                        <div class="useyepay">
+                        使用余额支付：
+                        <div class="input-wrap">
+                            <input type="text" class="W-input" id="w-input-{{ $key }}" name="accountPay" value="">
+                            <span class="holder-tip" style="display: inline;"></span>
+                        </div>
+                        </div>
+                        @if($account >= ($order->order_money - $order->pay_money) )
+                          <div class="useyepay">
+                              <label><input type="checkbox" id="checkbox-{{ $key }}" onclick="checkbox({{ $key }});" value="1">使用余额全额支付</label>
+                          </div>
+                        @else
+                        <div class="useyepay">
+                            <label><input type="checkbox" id="checkbox-{{ $key }}" onclick="checkbox({{ $key }});" disabled=true value="1">使用余额全额支付</label>
+                        </div>
+                        @endif
+
+                    </div>
+                </div>
+                <div class="submitbox">
+                    <input class="btn defaul fit btn-red f_r z-openmarker" onclick="javascript:orderPayConfirm({{ $key }},{{$order->id}});" type="button" value="立即提交">
+                    <div class="con"><span id="num">1</span> 件商品，应付金额：<span>￥<em id="summoney">{{ round($order->order_money - $order->pay_money,2) }}</em></span> </div>
+                    <div class="blank0"></div>
+                </div>
+              </form>
+              @endforeach
+
+            </div><!-- rechargetabcontent end -->
+        </div><!-- paymenttab end -->
+
+    </div><!--m-withe end-->
+    </div><!--tree-content end-->
+  </div><!-- content end-->
+</body>
+@endsection

@@ -1,0 +1,152 @@
+<?php $_fw_HTMLTitle = '微信授权'; $_fw_ContextPath = '../';
+$_fw_NavIndex = 1;
+$_fw_MenuIndex = 0;
+$_fw_AppTypeName = '云服务';
+$_fw_uriPrefix = 'cloud_service';
+?>
+@extends('layouts.base_service')
+
+@section('styles')
+@endsection
+
+@section('scripts')
+<script>
+    $(function(){
+        $(".remove_account").bind('click',function(){
+
+            $.ajax({
+                url: '{{ url('cloud_service/weixin_info_remove') }}',
+                data: "ajax=1",
+                type:"POST",
+                dataType: "json",
+                success: function(obj){
+
+                    if(obj.status)
+                    {
+                        window.location.reload();
+                    }
+                    else
+                    {
+                        $.showErr(obj.info);
+                    }
+                }
+            });
+        });
+    });
+</script>
+@endsection
+
+@section('content')
+<div class="content">
+<div class="tree-title">
+<span><i class="iconfont">&#xe605;</i>当前位置>云服务><em>微信授权</em></span>
+</div>
+
+<div class="tree-content">
+    <div class="m-withe ">
+    @if ($account['nick_name'])
+        <table class="table table-hover" cellpadding="4" cellspacing="0" border="0" class="form">
+            <tr>
+                <td colspan="2" class="topTd"></td>
+            </tr>
+                 @if ($account['nick_name'])
+                <tr>
+                    <td  class="item_title">公众号名称</td>
+                    <td class="item_input">
+                        {{ $account['nick_name'] }}
+                    </td>
+                </tr>
+                @endif
+            @if ($account['user_name'])
+                <tr>
+                    <td  class="item_title">授权方公众号的原始ID</td>
+                    <td class="item_input">
+                        {{ $account['user_name'] }}
+                    </td>
+                </tr>
+            @endif
+            @if ($account['head_img'])
+                <tr>
+                    <td  class="item_title">授权方公众号的头像</td>
+                    <td class="item_input">
+                        <a href=" {{ $account['head_img'] }}" target="_blank"><img  src=" {{ $account['head_img'] }}" width="50" height="50"></a>
+                    </td>
+                </tr>
+            @endif
+
+
+            @if ($verify_type)
+                <tr>
+                    <td class="item_title" style=" width:200px;">授权方认证类型</th>
+                    <td class="item_input">
+                        {{ $verify_type }}
+                    </td>
+                </tr>
+            @endif
+            @if ($service_type)
+                <tr>
+                    <td class="item_title" style=" width:200px;">授权方公众号类型</th>
+                    <td class="item_input">
+                        {{ $service_type }}
+                    </td>
+                </tr>
+                <tr>
+            @endif
+            @if ($account['authorizer_appid'])
+                <tr>
+                    <td class="item_title" style=" width:200px;">授权方appid</th>
+                    <td class="item_input">
+                        {{ $account['authorizer_appid'] }}
+                    </td>
+                </tr>
+            @endif
+            @if ($account['authorizer_access_token'])
+                <tr>
+                    <td class="item_title" style=" width:200px;">授权方access_token</th>
+                    <td class="item_input">
+                        {{ $account['authorizer_access_token'] }}
+                    </td>
+                </tr>
+            @endif
+            @if ($account['authorizer_refresh_token'] !='')
+                <tr>
+                    <td class="item_title" style=" width:200px;">授权方refresh_token</th>
+                    <td class="item_input">
+                        {{ $account['authorizer_refresh_token'] }}
+                    </td>
+                </tr>
+            @endif
+             @if ($account['user_name'] == '')
+                <tr>
+                    <td  class="item_title"></td>
+                    <td class="item_input">
+                        <input type="button" class="btn "  onclick="window.location.reload();" value="获取公众号信息">
+                    </td>
+                </tr>
+                @else
+                <tr>
+                <tr>
+                    <td  class="item_title"></td>
+                    <td class="item_input">
+                        <input type="button" class="btn fit defaul btn-red remove_account"  value="解除绑定">
+                    </td>
+                </tr>
+                </tr>
+            @endif
+
+        </table>
+    @else
+        @if ($sq_url)
+        <div class="blank15"></div>
+        <div class="" style="margin:15px auto;padding-bottom:60px;width:160px;"><a class="btn fit defaul btn-red" href="{{ $sq_url }}"  target="_blank">点击绑定</a></div>
+   
+        @else
+            {{ $error }}
+        @endif
+    @endif
+    </div>
+    </div>
+
+
+</div>
+@endsection

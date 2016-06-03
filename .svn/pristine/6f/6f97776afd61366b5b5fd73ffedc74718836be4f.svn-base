@@ -1,0 +1,92 @@
+<?php $_fw_MenuIndex = 1;?>
+@extends('layouts.base')
+@section('styles')
+<link rel="stylesheet" type="text/css" href="../res/css/m_financial_rechargedetail.css" />
+@endsection
+
+@section('scripts')
+<script type='text/javascript' src='{{asset('res/js/jquery.dateinputpack.js')}}' charset='utf-8'></script>
+<script type="text/javascript">
+function orderCancel(orderId) {
+  window.location.href="{{ url('user/financial_order_cancel') }}?order_id="+orderId;
+}
+$(document).ready(function(){
+    $(".controldetail").bind("click",function(){
+        $(this).toggleClass("zclose");
+        if ($(this).hasClass("zclose")) {
+            $(".zfztcontent").addClass("zclose");
+            $(this).find("span").text("展开扣款详情");
+        }else{
+            $(".zfztcontent").removeClass("zclose");
+            $(this).find("span").text("收起扣款详情");
+        };
+    });
+});
+</script>
+
+@endsection
+
+@section('content')
+<body>
+<div class="content">
+  <div class="tree-title">
+  <span><i class="iconfont">&#xe605;</i>当前位置>首页>财务管理><em>订单详情</em></span>
+  </div>
+  <div class="tree-content account_setting">
+    <div class="m-withe">
+      <div class="tree-contenttitle ">
+          <span>订单号：{{ $order->order_no }}<a class="btn line btn-default" href="{{ url('user/finance_manage') }}" role="button"><i class="iconfont">&#xe617;</i>返回列表</a></span>
+      </div>
+      <div class="tree-padding">
+          <table class="table table-bordered tbgy">
+          <thead>
+              <tr>
+                <th colspan="2">概要</th>
+              </tr>
+          </thead>
+          <tbody>
+              <tr>
+                <td>订单内容：{{ $order->order_topic }}</td>
+                <td>订单号：{{ $order->order_no }}</td>
+              </tr>
+              <tr>
+                <td>订单时间：{{ $order->created_at }}</td>
+                <td>订单状态:
+                  @if($order->order_status == 0)
+                  <span class="f_bluecolor">待支付</span>
+                  @elseif($order->order_status == 1)
+                  <span class="f_redcolor">已支付，未处理</span>
+                  @elseif($order->order_status == 2)
+                  <span class="f_greencolor">已完成</span>
+                  @elseif($order->order_status == 3)
+                  <span class="f_redcolor">已支付，处理异常</span>
+                  @elseif($order->order_status == 4)
+                  <span class="f_garycolor">已取消</span>
+                  @endif
+                </td>
+              </tr>
+              <tr>
+                <td>订单金额：￥{{ $order->order_money }}</td>
+                <td>已付金额：￥{{ $order->pay_money }}</td>
+              </tr>
+
+          </tbody>
+          </table>
+        <div class="zfzt">
+          {!! $orderDetail !!}
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:15px;">
+    @if($order->order_status == 0)
+      <a class="btn line btn-red f_l" href="{{ url('user/financial_pay') }}?order_id={{$order->id}}" role="button">立即支付</a>
+      &nbsp;&nbsp;&nbsp;&nbsp;
+      <a class="btn line btn-red" href="javascript:alertConfirm(' 您真的要取消吗？',function(){
+      orderCancel({{$order->id}});
+      },{okButtonText: '确定', cancelButtonText: '取消'});" role="button">取消订单</a>
+    @endif
+    </div>
+  </div>
+</div>
+</body>
+@endsection

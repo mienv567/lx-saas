@@ -1,0 +1,112 @@
+﻿/*// 主题色*/
+/*字体主色调*/
+/*线条主色调*/
+/*按钮主色调*/
+/*底纹色*/
+.weixinafter {
+  position: relative;
+  padding: 15px 0;
+  margin-bottom: 15px;
+}
+.weixinafter .headimg {
+  position: absolute;
+  width: 85px;
+  height: 85px;
+  overflow: hidden;
+  left: 45px;
+  top: 30px;
+  -moz-border-radius: 50%;
+  /* Firefox */
+  -webkit-border-radius: 50%;
+  /* Safari 和 Chrome */
+  border-radius: 50%;
+  /* Opera 10.5+, 以及使用了IE-CSS3的IE浏览器 */
+}
+.weixinafter .headimg img {
+  width: 100%;
+  -moz-border-radius: 50%;
+  /* Firefox */
+  -webkit-border-radius: 50%;
+  /* Safari 和 Chrome */
+  border-radius: 50%;
+  /* Opera 10.5+, 以及使用了IE-CSS3的IE浏览器 */
+}
+.weixinafter .btnbox{
+    position: absolute;
+  right: 45px;
+  top: 15px;
+  width:160px;
+  height: 85px;
+}
+.weixinafter .btn.fit{
+  font-size: 15px;
+    letter-spacing: 0;
+    margin-top:15px;
+}
+.weixinafter .headcontent {
+  padding-left: 175px;
+  padding-right: 220px;
+  padding-top: 20px;
+  line-height: 36px;
+  min-height: 140px;
+}
+.weixinafter .headcontent h1 {
+  font-size: 22px;
+  line-height: 38px;
+  font-weight: bold;
+}
+.weixinafter .headcontent .list {
+  float: left;
+  padding-right: 30px;
+  width: 33%;
+  line-height:40px;
+}
+.weixinafter .headcontent .list em{
+  font-size: 22px;
+  color: #e47470;
+  margin-right: 5px;
+}
+.weixinafter .headcontent .list .a-link {
+  padding-left: 12px;
+}
+.weixinafter .headcontent .list .btn {
+  margin: 0 8px;
+}
+.weixinafter .headcontent .list i.look {
+  vertical-align: middle;
+  color: #ccc;
+  font-size: 20px;
+}
+.weixinafter .headcontent .list i.sj {
+  padding-left: 8px;
+  vertical-align: top;
+  color: #ccc;
+  font-size: 20px;
+  cursor: pointer;
+}
+span.pd30 {
+  padding-left: 30px;
+}
+.weixinafter .rcontent {
+  padding-left: 45px;
+}
+.weixinafter .rcontent h1 {
+  font-size: 15px;
+  line-height: 35px;
+  font-weight: normal;
+}
+.weixinafter .rcontent h2 {
+  font-size: 40px;
+  font-weight: normal;
+  vertical-align: text-bottom;
+}
+.weixinafter .rcontent h2 a {
+  font-size: 14px;
+  vertical-align: bottom;
+}
+.weixinafter .rcontent .btnrecharge {
+  padding-top: 10px;
+}
+.weixinafter .rcontent .btnrecharge a {
+  font-size: 16px;
+}

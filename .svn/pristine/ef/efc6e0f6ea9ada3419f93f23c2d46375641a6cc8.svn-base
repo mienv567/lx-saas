@@ -1,0 +1,186 @@
+<?php
+
+namespace App\Http\Controllers\CloudService;
+use App\Api\Product\FlowGiftProductHandler;
+use App\Http\Controllers\Controller;
+use App\Models\Order;
+use Illuminate\Http\Request;
+
+use Auth,Validator;
+
+/**
+ * 流量红包控制器
+ */
+
+class FlowRedController extends Controller{
+
+    /**
+     * 构造函数
+     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
+    //列表
+    public function index(Request $request){
+        $all = $request->all();
+        $result = $this->get_flow_red();
+        $flow_red = $result['data'];
+        $orders = Order::where('user_id',Auth::id())->where('product_type',0)->where('product_id',1)->whereIn('order_status',[1,2,3])->where(function($query)use($all){
+            if(isset($all['status']) && $all['status']!='all'){
+                $query->where('order_status','=',$all['status']);
+            }
+            if(isset($all['start_time']) && $all['start_time']!=''){
+                $query->where('created_at','>=',$all['start_time']);
+            }
+            if(isset($all['end_time']) && $all['end_time']!=''){
+                $query->where('created_at','<=',$all['end_time']);
+            }
+        })->orderBy('created_at','desc')->paginate(10);
+
+        $data = compact("flow_red","orders","all");
+        return view('cloud_service.flow_red_index',$data);
+    }
+
+    //充值
+    public function recharge(){
+
+        $result = $this->get_flow_red();
+        $flow_red = $result['data'];
+        $data = compact("flow_red");
+        return view('cloud_service.flow_red_recharge',$data);
+    }
+
+    //充值更新
+    public function recharge_update(Request $request){
+
+        $validator = Validator::make($request->all(), [
+            'recharge_money' => 'required|min:0.01|flow_money',
+        ],[
+            'recharge_money.required' => '必须填写充值金额',
+            'recharge_money.flow_money' => '充值金额必须是100的倍数',
+            'recharge_money.min' => '充值金额必须大于0',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => $validator->getMessageBag()->first(),
+                )
+            );
+        }
+
+        $money = $request->recharge_money;
+        $orderTopic = '云服务-流量红包充值';
+        $buyInfo = array('flowMoney'=>$money);
+        $handle = new FlowGiftProductHandler();
+        $order = $handle->makeOrder(Auth::id(),$orderTopic,1,$money,$buyInfo);
+        if($order){
+            //$result = $handle->makeOrderProduct($order['id']);
+            return response()->json(
+                array(
+                    'err' => 0,
+                    'url' => url('user/financial_pay?order_id='.$order['id']),
+                )
+            );
+
+        }else{
+            return response()->json(
+                array(
+                    'err' => 1,
+                    'msg' => '充值失败',
+                )
+            );
+        }
+    }
+
+    //获取用户流量红包信息
+    public function get_flow_red(){
+        $user = Auth::user();
+        $smsinfo['act'] ='query';
+        $smsinfo['appid'] = $user['app_id'];
+        $smsinfo['appsecret'] = $user['app_password'];
+        $smsinfo = json_encode($smsinfo);
+        $curlPost = 'server_string='.$smsinfo;
+        $url = 'http://www.niuhudong.cn/userpost.php';
+        $ch = curl_init();
+        curl_setopt ( $ch, CURLOPT_URL, $url );
+        curl_setopt ($ch,  CURLOPT_RETURNTRANSFER,1);
+        curl_setopt ( $ch, CURLOPT_POST, 1 ); //启用POST提交
+        curl_setopt ($ch,CURLOPT_POSTFIELDS,$curlPost);
+        $result = curl_exec ($ch);
+        curl_close($ch);
+        $result = json_decode($result,true);
+        return $result;
+    }
+
+    //账户添加
+    public function add(Request $request){
+
+        $user = Auth::user();
+        $smsinfo['act'] ='adduser';
+        $smsinfo['appid'] = $user['app_id'];
+        $smsinfo['appsecret'] = $user['app_password'];
+        $smsinfo = json_encode($smsinfo);
+        $curlPost = 'server_string='.$smsinfo;
+        $url = 'http://www.niuhudong.cn/userpost.php';
+        $ch = curl_init();
+        curl_setopt ( $ch, CURLOPT_URL, $url );
+        curl_setopt ($ch,  CURLOPT_RETURNTRANSFER,1);
+        curl_setopt ( $ch, CURLOPT_POST, 1 ); //启用POST提交
+        curl_setopt ($ch,CURLOPT_POSTFIELDS,$curlPost);
+        $result = curl_exec ($ch);
+        curl_close($ch);
+        $result = json_decode($result,true);
+        return redirect()->route('cloud_service.flow_red.index');
+        //return view('cloud_service.flow_red_add');
+    }
+
+    //账户保存
+    public function store(Request $request){
+
+        $user = Auth::user();
+        $smsinfo['act'] ='adduser';
+        $smsinfo['user_name'] = $user['username'];
+        $smsinfo['password'] = $user['app_password'];
+        $smsinfo['appid'] = '711247195234575';
+        $smsinfo['appsecret'] = 'asdSDW4s1S2dwdsd31121451sseDEDDS';
+        $smsinfo = json_encode($smsinfo);
+        $curlPost = 'server_string='.$smsinfo;
+        $url = 'http://www.niuhudong.cn/userpost.php';
+        $ch = curl_init();
+        curl_setopt ( $ch, CURLOPT_URL, $url );
+        curl_setopt ($ch,  CURLOPT_RETURNTRANSFER,1);
+        curl_setopt ( $ch, CURLOPT_POST, 1 ); //启用POST提交
+        curl_setopt ($ch,CURLOPT_POSTFIELDS,$curlPost);
+        $result = curl_exec ($ch);
+        curl_close($ch);
+        $result = json_decode($result);
+    }
+
+    //账户编辑
+    public function edit(Request $request){
+
+        return view('cloud_service.flow_red_edit');
+    }
+
+    //账户编辑保存
+    public function update(Request $request){
+
+        $all = $request->all();
+        $smsinfo['act'] ="modifyuser";
+        $smsinfo['id'] = $all['id'];
+        $smsinfo['user_name'] = $all['name'];
+        $smsinfo = json_encode($smsinfo);
+        $curlPost = 'server_string='.$smsinfo;
+        $url = 'http://www.niuhudong.cn/userpost.php';
+        $ch = curl_init();
+        curl_setopt ( $ch, CURLOPT_URL, $url );
+        curl_setopt ($ch,  CURLOPT_RETURNTRANSFER,1);
+        curl_setopt ( $ch, CURLOPT_POST, 1 ); //启用POST提交
+        curl_setopt ($ch,CURLOPT_POSTFIELDS,$curlPost);
+        $result = curl_exec ($ch);
+        curl_close($ch);
+    }
+}

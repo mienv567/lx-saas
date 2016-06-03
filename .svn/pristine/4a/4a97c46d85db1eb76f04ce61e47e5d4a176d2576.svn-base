@@ -1,0 +1,85 @@
+﻿
+/* Add by zzj */
+
+#userAppCert {
+  position: fixed;
+  display: none;
+  border: 4px solid #f1e3d8;
+  background: #fffcf5;
+  padding: 20px 30px;
+  min-width: 480px;
+}
+#userAppCert h1 {
+  float: left;
+  font-size: 22px;
+}
+#userAppCert .close {
+  padding: 9px;
+  background: url(../images/close_24px.png) no-repeat center center;
+}
+#userAppCert label {
+  font-weight: normal;
+  width: 95px;
+}
+#userAppCert ul {
+  padding: 20px 0;
+  clear:both;
+}
+#userAppCert li {
+  border-bottom: 1px dotted #e8e6df;
+  padding: 15px 0 10px 0;
+}
+#userAppCert li a {
+  color: #529ad0;
+  padding-left: 15px;
+  text-decoration: none;
+}
+#userAppCert li a:hover {
+  color: #ff0000;
+  text-decoration: none;
+}
+#userAppSecret {
+  display: none;
+}
+.m-withe table.table tr:last-child td {
+  border-bottom: 0;
+}
+.m-withe table.table {
+  margin-bottom: 0;
+}
+.m-withe table.table td.nomessage {
+  text-align: center;
+  height: 205px;
+}
+
+
+
+#mobileAppCert {
+    position: fixed;
+    display: none;
+    border: 4px solid #f1e3d8;
+    background: #fffcf5;
+    padding: 20px 30px;
+    min-width: 480px;
+}
+#mobileAppCert h1 {
+    float: left;
+    font-size: 22px;
+}
+#mobileAppCert .close {
+    padding: 9px;
+    background: url(../images/close_24px.png) no-repeat center center;
+}
+#mobileAppCert label {
+    font-weight: normal;
+    width: 95px;
+}
+#mobileAppCert ul {
+    padding: 20px 0;
+    clear:both;
+}
+#mobileAppCert li {
+    border-bottom: 1px dotted #e8e6df;
+    padding: 15px 0 10px 0;
+}
+

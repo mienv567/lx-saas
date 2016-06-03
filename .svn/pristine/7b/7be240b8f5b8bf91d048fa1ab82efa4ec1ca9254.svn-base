@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Http\Controllers\CloudService;
+
+use DB;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Auth;
+
+
+/**
+ * 云服务模块首页控制器类
+ */
+class WeixinInfoController extends Controller
+{
+    public $option;
+    public $platform;
+    public $account;
+    public $user_id;
+    /**
+     * 构造函数
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        ini_set("display_errors", 1);
+        error_reporting(E_ALL ^ E_NOTICE ^ E_WARNING ^ E_DEPRECATED);
+
+        define('DB_PREFIX','saas_');
+
+       $this->middleware('auth');
+
+    }
+    /**
+     * 显示首页
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index(Request $request)
+    {
+
+        $user = Auth::user();
+        $weixin_conf_obj = DB::select("select * from ".DB_PREFIX."weixin_conf");
+        $weixin_conf = array();
+        foreach($weixin_conf_obj as $k=>$v){
+            $weixin_conf[$v->name]=$v->value;
+        }
+        $account_obj = DB::table(DB_PREFIX."weixin_account")->where('appid',$user['app_id'])->first();
+        $this->account = (array)$account_obj;
+
+        $data = [];
+        $data['account'] = $this->account;
+
+        $data['weixin_conf'] =$weixin_conf;
+
+
+        if($weixin_conf['platform_component_verify_ticket']&&!$this->account){
+
+
+            $client = new \SAASAPIClient($user['app_id'], $user['app_secret']);
+            $args = array('status'=>1);
+            $ret = $client->invoke('http://service.yun.fanwe.com/weixin/return_ticket', $args);
+
+            if($ret['errcode']>0){
+                $error = $ret['errmsg'];
+            }else{
+                if($ret['data']['sq_url']){
+                    $data['sq_url'] = $ret['data']['sq_url'];
+                }
+            }
+
+        }else{
+            $error="未获取 component_verify_ticket";
+        }
+        $data['error'] = $error;
+        if($weixin_conf['platform_appid']&&$weixin_conf['authorizer_appid']&&!$this->account['user_name']){
+            $client = new \SAASAPIClient($user['appid'], $user['app_secret']);
+            $args = array();
+            $ret = $client->invoke('http://service.yun.fanwe.com/weixin/return_ticket', $args);
+        }
+
+        $verify_type_array=array(-1=>'未认证',0=>'微信认证',1=>'新浪微博认证',2=>'腾讯微博认证',3=>'已资质认证通过但还未通过名称认证',4=>'已资质认证通过、还未通过名称认证，但通过了新浪微博认证',5=>'已资质认证通过、还未通过名称认证，但通过了腾讯微博认证');
+        $service_type_array=array(0=>'订阅号',1=>'由历史老帐号升级后的订阅号',2=>'服务号');
+        $data['verify_type'] = $verify_type_array[$this->account['verify_type_info']];
+        $data['service_type'] = $service_type_array[$this->account['service_type_info']];
+
+        return view('cloud_service/weixin_info',$data);
+    }
+
+
+
+    public function account_remove(){
+        $user = Auth::user();
+        $account_obj = DB::table(DB_PREFIX."weixin_account")->where('appid',$user['app_id'])->first();
+        $this->account = (array)$account_obj;
+        $config = $this->account;
+        // var_dump("delete from ".DB_PREFIX."weixin_account where id=".$config['id']);
+        //$re=$GLOBALS['db']->query("delete from ".DB_PREFIX."weixin_account where id=".$config['id']);
+        // $re = DB::query("delete from ".DB_PREFIX."weixin_account where id=".$config['id']);
+        DB::table(DB_PREFIX."weixin_account")->where('id', $config['id'])->delete();
+        $re = $info= array('info'=>'删除成功','status'=>1);
+        if($re){
+            echo json_encode($info);
+        }else{
+            $info['status']=0;
+            $info['info']='删除失败';
+            echo json_encode($info);
+        }
+    }
+
+
+}

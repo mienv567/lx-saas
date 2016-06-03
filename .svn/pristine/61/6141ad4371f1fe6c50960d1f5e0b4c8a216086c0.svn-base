@@ -1,0 +1,25 @@
+﻿.layout-header .c-left-nav {
+  height: 53px;
+  line-height: 53px;
+}
+.layout-main.closed .layout-left {
+  width: 60px;
+}
+.layout-main.closed .layout-right {
+  left: 60px;
+}
+.layout-main.closed .layout-left .navlist a i.left > b {
+  left: 0!important;
+  width: 59px;
+  height: 60px;
+}
+.layout-main.closed .layout-left .navlist {
+  height: 60px;
+  line-height: 60px;
+}
+.layout-main.closed .layout-left .navlist a i.left {
+  color: #fff;
+  line-height: 60px;
+  width: 59px;
+  font-size: 25px;
+}

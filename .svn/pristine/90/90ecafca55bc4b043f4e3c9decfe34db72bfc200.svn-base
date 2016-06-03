@@ -1,0 +1,125 @@
+<?php
+$_fw_MenuIndex = 1;
+$_fw_HtmlTitle = '账户充值';
+?>
+@extends('layouts.base')
+@section('styles')
+<link rel="stylesheet" type="text/css" href="../res/css/m_financial_recharge.css" />
+<link rel="stylesheet" type="text/css" href="../res/css/system_payment.css" />
+@endsection
+
+@section('scripts')
+<script type='text/javascript' src='{{asset('res/js/jquery.dateinputpack.js')}}' charset='utf-8'></script>
+
+<script type="text/javascript">
+$(document).ready(function(){
+    $(".rechargestyle .rechargebox").bind("click",function(){
+        $(this).siblings(".rechargebox").removeClass("active");
+        $(this).addClass("active");
+    });
+});
+
+function rechargeCheck(){
+  $('.form-recharge-check').submit();
+}
+
+function payResultConfirm(key) {
+  var amount = $("#form_" + key + " input[name='amount']").val();
+  var reg = /^\d{1,8}(\.\d{1,2})?$/;
+  if(!reg.test(amount)) {
+    alertWarn('请输入正确充值金额');
+    document.getElementById("w-input-"+key).value = 0;
+    return ;
+  }
+  if (amount == 0) {
+    alertWarn('请输入正确充值金额');
+    return ;
+  }
+
+  $("#form_" + key).submit();
+  var content = '<p class="ml1"> 请您在新打开的页面完成付款。</p>'
+              + '<p class="ml2 f_redcolor"> 付款完成前请不要关闭此窗口。</p>'
+              + '<p> 完成付款后请根据您的情况点击下面的按钮：</p>';
+  alertConfirm(
+    content,
+    function(){
+      rechargeCheck();
+    },
+    {okButtonText: '已完成充值', cancelButtonText: '重新发起充值'}
+  );
+}
+</script>
+
+@endsection
+
+@section('content')
+<body>
+<div style="display:none">
+<form class="form-recharge-check" action="{{url('user/financial_recharge_check')}}" method="POST">
+  <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+  <input type="hidden" name="payment_id" id="recharge-payment" value="">
+</form>
+</div>
+<div class="content">
+<div class="tree-title">
+<span><i class="iconfont">&#xe605;</i>当前位置>首页>财务管理><em>充值</em></span>
+</div>
+
+<div class="tree-content">
+<div class="m-withe">
+    <div class="tree-contenttitle ">
+        <span>充值</span>
+    </div>
+    <div class="form_hidden" style="display:none"></div>
+    <div class="tree-padding">
+      <h1>余额：<em>￥{{ $money }}</em> </h1>
+        <div class="blank15"></div>
+        <div class="rechargetab">
+          <ul class="tab">
+            @foreach ($paymentTypes as $key => $paymentType)
+            <li class="@if ($key == 0) active first @endif" rel="{{ $paymentType->id }}"><a href="javascript:void(0);">{{ $paymentType->name }}充值</a></li>
+            @endforeach
+          </ul>
+        </div>
+        <div class="rechargetabcontent">
+
+          @foreach ($paymentTypes as $key => $paymentType)
+          <form id="form_{{ $key }}" method="POST" action="{{ url('user/financial_recharge_handle') }}" target="_blank" >
+            <input type="hidden" name="_token" value="<?php echo csrf_token(); ?>">
+            <input type="hidden" name="payment_type_id" value="{{ $paymentType->id }}">
+            <div class="tabcontent @if ($key == 0) active @endif" rel="{{ $paymentType->id }}">
+              <div class="list error">
+                <label>充值金额:</label>
+                <div class="input-wrap ">
+                    <input type="text" id="w-input-{{ $key }}" class="W-input " name="amount" value="">
+                    <span class="holder-tip" style="display: block;"></span>
+                </div>
+                元
+              </div>
+              <div class="rechargestyle">
+                {!! $paymentType->getDisplayCode() !!}
+                <div class="blank0"></div>
+              </div>
+              <div class="warmtip">
+                <h1>温馨提示:</h1>
+                <ul>
+                  <li>1、通过信用卡的快捷支付有500元限制，超过500元时您可以选择其他支付方式。</li>
+                  <li>2、充值后请及时对支付订单进行结算，以免影响正常服务。</li>
+                </ul>
+              </div>
+              <div class="btnrecharge">
+                <input class="btn defaul btn-red fit z-openmarker" type="button" value="充值" onclick="javascript:payResultConfirm({{ $key }})">
+              </div>
+            </div>
+          </form>
+          @endforeach
+
+        </div>
+
+    </div><!-- tree-padding end -->
+
+</div>
+
+</div>
+</body>
+@endsection

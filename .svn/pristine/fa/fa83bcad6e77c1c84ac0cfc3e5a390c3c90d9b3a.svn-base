@@ -1,0 +1,904 @@
+<?php
+
+namespace App\Http\Controllers\User;
+
+use App\Api\Product\utils\ProductUtil;
+use App\Events\OrderFailDeal;
+use App\Events\OrderSuccCloudPlatform;
+use App\Events\OrderSuccCloudSystem;
+use App\Events\OrderSuccServiceLlhb;
+use App\Http\Controllers\Controller;
+use App\Models\Appsvc;
+use App\Models\Appsys;
+use App\Models\ConsumeLog;
+use App\Models\Order;
+use App\Models\Payment;
+use App\Models\PaymentType;
+use App\Models\RechargeLog;
+use App\Models\User as UserModel;
+use Carbon\Carbon;
+use DB;
+use DBLog;
+use Illuminate\Http\Request;
+use Log;
+
+/**
+ * 企业用户财务管理控制器类
+ */
+class FinanceManageController extends Controller
+{
+
+    /**
+     * 构造函数
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        $this->middleware('auth');
+    }
+
+    /**
+     * 显示首页
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index(Request $request)
+    {
+        $user = $request->user();
+        $money = $user->money;
+        $payments = Payment::where('user_id', $user->id)->get();
+        $rechargeLogsQuery = RechargeLog::where('user_id', $user->id)->orderBy('created_at', 'asc');
+        $allRechargeLogs = $rechargeLogsQuery->get();
+        $totalAmount = 0;
+        foreach ($allRechargeLogs as $rechargeLog) {
+            $totalAmount += $rechargeLog->amount;
+        }
+        return view('user.finance_manage', [
+            'money' => $money,
+            'totalAmount' => $totalAmount,
+        ]);
+    }
+
+    /**
+     * 加载充值记录
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function rechargeLog(Request $request)
+    {
+        // 设置默认变量
+        $totalRecharge = 0;
+        $rechargeStartTime = null;
+        $rechargeEndTime = null;
+
+        $user = $request->user();
+
+        $rechargesQuery = RechargeLog::where('user_id', $user->id);
+
+        if (isset($request->put_recharge_start_time)) {
+            if (!empty($request->put_recharge_start_time)) {
+                $rechargeStartTime = $request->put_recharge_start_time;
+                $rechargesQuery = $rechargesQuery->where('created_at', '>=', $rechargeStartTime);
+            }
+        } elseif (!empty($request->recharge_start_time)) {
+            $rechargeStartTime = $request->recharge_start_time;
+            $rechargesQuery = $rechargesQuery->where('created_at', '>=', $rechargeStartTime);
+        }
+
+        if (isset($request->put_recharge_end_time)) {
+            if (!empty($request->put_recharge_end_time)) {
+                $rechargeEndTime = $request->put_recharge_end_time;
+                $rechargesQuery = $rechargesQuery->where('created_at', '<=', $rechargeEndTime . ' 23:59:59');
+            }
+        } elseif (!empty($request->recharge_end_time)) {
+            $rechargeEndTime = $request->recharge_end_time;
+            $rechargesQuery = $rechargesQuery->where('created_at', '<=', $rechargeEndTime . ' 23:59:59');
+        }
+
+        $allRecharges = $rechargesQuery->get();
+
+        $recharges = $rechargesQuery->orderBy('created_at', 'desc')->paginate(10);
+
+        $recharges->setPath('javascript:loadRecharLogPage(\'financial_recharge_log?put_recharge_start_time=' . $rechargeStartTime . '&put_recharge_end_time=' . $rechargeEndTime . '');
+        $recharges->fragment('\');');
+
+        if ($allRecharges->count() != 0) {
+            foreach ($allRecharges as $recharge) {
+                $totalRecharge += $recharge->amount;
+            }
+        }
+
+        return view('user.financial_recharge_log_page', [
+            'rechargeStartTime' => $rechargeStartTime,
+            'rechargeEndTime' => $rechargeEndTime,
+            'recharges' => $recharges,
+            'totalRecharge' => $totalRecharge,
+        ]);
+    }
+
+    /**
+     * 加载消费记录
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function consumeLog(Request $request)
+    {
+
+        // 设置默认变量
+        $totalConsume = 0;
+        $consumeStatus = null;
+        $consumeStartTime = null;
+        $consumeEndTime = null;
+
+        $user = $request->user();
+        $consumesQuery = ConsumeLog::where('user_id', $user->id);
+        if (isset($request->put_consume_status)) {
+            if (!is_null($request->put_consume_status)) {
+                $consumeStatus = $request->put_consume_status;
+                if ($request->put_consume_status != -1) {
+                    $consumesQuery = $consumesQuery->where('pay_type', $consumeStatus);
+                }
+            }
+        } elseif (!is_null($request->consume_status)) {
+            $consumeStatus = $request->consume_status;
+            if ($request->consume_status != -1) {
+                $consumesQuery = $consumesQuery->where('pay_type', $consumeStatus);
+            }
+        }
+
+        if (isset($request->put_consume_start_time)) {
+            if (!empty($request->put_consume_start_time)) {
+                $consumeStartTime = $request->put_consume_start_time;
+                $consumesQuery = $consumesQuery->where('created_at', '>=', $consumeStartTime);
+            }
+
+        } elseif (!empty($request->consume_start_time)) {
+            $consumeStartTime = $request->consume_start_time;
+            $consumesQuery = $consumesQuery->where('created_at', '>=', $consumeStartTime);
+        }
+
+        if (isset($request->put_consume_end_time)) {
+            if (!empty($request->put_consume_end_time)) {
+                $consumeEndTime = $request->put_consume_end_time;
+                $consumesQuery = $consumesQuery->where('created_at', '<=', $consumeEndTime . ' 23:59:59');
+            }
+        } elseif (!empty($request->consume_end_time)) {
+            $consumeEndTime = $request->consume_end_time;
+            $consumesQuery = $consumesQuery->where('created_at', '<=', $consumeEndTime . ' 23:59:59');
+        }
+
+        $allConsumes = $consumesQuery->get();
+        if ($allConsumes->count() != 0) {
+            foreach ($allConsumes as $consume) {
+                $totalConsume += $consume->amount;
+            }
+        }
+
+        $consumes = $consumesQuery->orderBy('created_at', 'desc')->paginate(10);
+
+        $consumes->setPath('javascript:loadConsumeLogPage(\'financial_consume_log?put_consume_status=' . $consumeStatus . '&put_consume_start_time=' . $consumeStartTime . '&put_consume_end_time=' . $consumeEndTime);
+        $consumes->fragment('\');');
+
+        return view('user.financial_consume_log_page', [
+            'consumeStatus' => $consumeStatus,
+            'consumeStartTime' => $consumeStartTime,
+            'consumeEndTime' => $consumeEndTime,
+            'consumes' => $consumes,
+            'totalConsume' => $totalConsume,
+        ]);
+    }
+
+    /**
+     * 加载订单记录
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function orderLog(Request $request)
+    {
+        // 设置默认变量
+        $orderKey = null;
+        $orderStatus = null;
+        $orderStartTime = null;
+        $orderEndTime = null;
+
+        $user = $request->user();
+        $ordersQuery = Order::where('user_id', $user->id);
+        //首先检查客户是否已经设置好了查询条件，并检查是否为空
+        if (isset($request->put_order_key)) {
+            if (!empty($request->put_order_key)) {
+                $orderKey = $request->put_order_key;
+                $ordersQuery = $ordersQuery->where('order_no', 'like', '%' . $orderKey . '%')
+                    ->orWhere(function ($query) use ($user, $orderKey) {
+                        $query->where('user_id', $user->id)
+                            ->where('order_topic', 'like', '%' . $orderKey . '%');
+                    });
+            }
+        } elseif (!empty($request->order_key)) {
+            $orderKey = $request->order_key;
+            $ordersQuery = $ordersQuery->where('order_no', 'like', '%' . $orderKey . '%')
+                ->orWhere(function ($query) use ($user, $orderKey) {
+                    $query->where('user_id', $user->id)
+                        ->where('order_topic', 'like', '%' . $orderKey . '%');
+                });
+        }
+
+        if (isset($request->put_order_status)) {
+            if (!is_null($request->put_order_status)) {
+                $orderStatus = $request->put_order_status;
+                if ($request->put_order_status != -1) {
+                    $ordersQuery = $ordersQuery->where('order_status', $orderStatus);
+                }
+            }
+        } elseif (!is_null($request->order_status)) {
+            $orderStatus = $request->order_status;
+            if ($request->order_status != -1) {
+                $ordersQuery = $ordersQuery->where('order_status', $orderStatus);
+            }
+        }
+
+        if (isset($request->put_order_start_time)) {
+            if (!empty($request->put_order_start_time)) {
+                $orderStartTime = $request->put_order_start_time;
+                $ordersQuery = $ordersQuery->where('created_at', '>=', $orderStartTime);
+            }
+        } elseif (!empty($request->order_start_time)) {
+            $orderStartTime = $request->order_start_time;
+            $ordersQuery = $ordersQuery->where('created_at', '>=', $orderStartTime);
+        }
+
+        if (isset($request->put_order_end_time)) {
+            if (!empty($request->put_order_end_time)) {
+                $orderEndTime = $request->put_order_end_time;
+                $ordersQuery = $ordersQuery->where('created_at', '<=', $orderEndTime . ' 23:59:59');
+            }
+        } elseif (!empty($request->order_end_time)) {
+            $orderEndTime = $request->order_end_time;
+            $ordersQuery = $ordersQuery->where('created_at', '<=', $orderEndTime . ' 23:59:59');
+        }
+
+        $orders = $ordersQuery->orderBy('created_at', 'desc')->paginate(10);
+
+        $orders->setPath('javascript:loadOrderLogPage(\'financial_order_log?put_order_key=' . $orderKey . '&put_order_status=' . $orderStatus . '&put_order_start_time=' . $orderStartTime . '&put_order_end_time=' . $orderEndTime);
+        $orders->fragment('\');');
+
+        return view('user.financial_order_log_page', [
+            'orders' => $orders,
+            'orderKey' => $orderKey,
+            'orderStatus' => $orderStatus,
+            'orderStartTime' => $orderStartTime,
+            'orderEndTime' => $orderEndTime,
+        ]);
+    }
+    /**
+     * 显示充值页
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function recharge(Request $request)
+    {
+        $user = $request->user();
+        $paymentTypes = PaymentType::orderBy('sort', 'asc')->get();
+        return view('user.financial_recharge', [
+            'paymentTypes' => $paymentTypes,
+            'money' => $user->money,
+        ]);
+    }
+
+    /**
+     * 充值处理
+     * @param  Request $request HTTP请求对象
+     * @return $data json
+     */
+    public function rechargeHandle(Request $request)
+    {
+        //创建支付单
+        $orderId = 0;
+        $payment = Payment::createPaymentByOrder($orderId, $request->amount, $request->payment_type_id);
+
+        $paymentType = $payment->paymentType;
+        $className = 'App\Api\Payment\\' . ucfirst($paymentType->class_name) . 'PaymentHandler';
+        $paymentHander = new $className();
+        $displayCode = $paymentHander->makePaymentCode($payment, '余额充值');
+        $data = [
+            'code' => $displayCode,
+            'payment' => $payment->id,
+        ];
+        //返回结果
+        return view('user.financial_recharge_handle', $data);
+    }
+
+    /**
+     * 充值详情页
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response   充值详情页
+     */
+    public function rechargeDetail(Request $request)
+    {
+        $payment = Payment::find($request->payment_id);
+        if (empty($payment)) {
+            return view('errors.503.blade.php');
+        }
+        return view('user.financial_recharge_detail', ['payment' => $payment]);
+    }
+
+    /**
+     * 产品购买支付页面
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response   产品购买支付页面
+     */
+    public function orderPay(Request $request)
+    {
+        $user = $request->user();
+
+        $order = Order::where([
+            'id' => $request->order_id,
+            'user_id' => $user->id,
+        ])->first();
+
+        $paymentTypes = PaymentType::orderBy('sort', 'asc')->get();
+
+        if (empty($order)) {
+
+            return view('user.financial_pay_abnormal', [
+                'paymentTypes' => $paymentTypes,
+                'account' => $user->money,
+            ]);
+        }
+
+        $orderStatus = $order->order_status;
+
+        if ($orderStatus == 0) {
+            // 订单支付状态未完成
+            return view('user.financial_pay', [
+                'order' => $order,
+                'paymentTypes' => $paymentTypes,
+                'account' => $user->money,
+            ]);
+        } elseif ($orderStatus == 1 || $orderStatus == 2) {
+            //订单支付状态已完成
+            return view('user.financial_pay_success', [
+                'order' => $order,
+            ]);
+        } elseif ($orderStatus == 3) {
+            //订单已支付，处理异常，请与我们的客服联系。
+            return view('user.financial_order_abnormal', [
+                'order' => $order,
+            ]);
+        } elseif (($orderStatus == 4)) {
+            //订单已经取消
+            $payMoney = ['payMoney' => ''];
+            return view('user.financial_order_cancel', $payMoney);
+        }
+
+    }
+
+    /**
+     * 订单在线支付处理
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response   订单在线处理页面
+     */
+    public function payHandle(Request $request)
+    {
+        $user = $request->user();
+        $orderId = $request->orderId;
+        $orderPayMoney = $request->orderPayMoney; //订单应付金额
+        $paymentTypeId = $request->paymentTypeId; //支付方式id
+        $data = [
+            'status' => 0, // 未支付
+            'note' => '',
+            'code' => '',
+            'orderId' => $orderId,
+        ];
+
+        //如果用户没有选择从账户余额支付，默认从账户支付余额为0
+        if (!empty($request->accountPay)) {
+            $accountPay = $request->accountPay;
+        } else {
+            $accountPay = 0;
+        }
+
+        if ($user->money < $accountPay) {
+            $data = [
+                'status' => 2, // 余额不足
+                'amount' => $user->money,
+                'note' => '余额不足',
+                'orderId' => $orderId,
+            ];
+            return view('user.financial_pay_handle', $data);
+        }
+
+        if ($accountPay >= 0) {
+            $payResult = $this->orderPayForAccount($orderId, $accountPay);
+        } else {
+            $payResult = [
+                'status' => 0,
+                'note' => '未支付',
+                'orderId' => $orderId,
+            ];
+        }
+
+        if ($payResult['status'] != 0) {
+            $data = array_merge($data, $payResult);
+            return view('user.financial_pay_handle', $data);
+        }
+
+        $payMoney = round($orderPayMoney - $accountPay, 2);
+        //在线支付
+        $code = $this->orderPayOnline($orderId, $payMoney, $paymentTypeId);
+        $data = [
+            'status' => 0,
+            'note' => $payResult['note'],
+            'code' => $code,
+            'orderId' => $orderId,
+        ];
+
+        //返回结果
+        return view('user.financial_pay_handle', $data);
+    }
+
+    /**
+     * 订单全部由余额支付处理
+     * @param  Request $request HTTP请求对象
+     * @return $data json
+     */
+    public function payForAccount(Request $request)
+    {
+        $user = $request->user();
+        $orderId = $request->orderId;
+        $accountPay = $request->accountPay;
+        if ($user->money < $accountPay) {
+            $data = [
+                'status' => 2, // 余额不足
+                'amount' => $user->money,
+                'note' => '余额不足,请重新提交支付',
+                'orderId' => $orderId,
+            ];
+            return json_encode($data);
+        }
+        if ($accountPay >= 0) {
+            $payResult = $this->orderPayForAccount($orderId, $accountPay);
+        }
+        $data = [
+            'status' => $payResult['status'],
+            'note' => $payResult['note'],
+            'orderId' => $orderId,
+        ];
+
+        return json_encode($data);
+    }
+
+    /**
+     * 产品余额支付
+     * @param  int $orderId       订单id
+     * @param  double $payMoney      支付金额
+     * @return int $status            支付状态
+     */
+    public function orderPayForAccount($orderId, $payMoney)
+    {
+        try {
+            // 获取订单信息
+            $order = Order::find($orderId);
+            if (empty($order)) {
+                return $payResult = [
+                    'status' => 4,
+                    'note' => '支付异常，无此订单',
+                ];
+            }
+            //先检查订单是否已完成,假如客户从另外一台电脑登录支付
+            if ($order->order_status != 0) {
+                return $payResult = [
+                    'status' => 1,
+                    'note' => '已不需要支付',
+                ];
+            }
+            // 产生消费记录
+            $consume = new ConsumeLog;
+            $consume->user_id = $order->user_id;
+            $consume->order_id = $orderId;
+            $consume->pay_type = 0;
+            $consume->amount = $payMoney;
+            $consume->method = '余额支付';
+
+            //客户余额扣款
+            $user = UserModel::find($order->user_id);
+            $user->money = $user->money - $payMoney;
+
+            //订单状态修改
+            $order->pay_money += $payMoney;
+            if ($order->pay_money >= $order->order_money) {
+                $order->order_status = 1;
+            }
+
+            DB::transaction(function () use ($consume, $user, $order, $payMoney) {
+                if ($payMoney != 0) {
+                    $consume->save();
+                    $user->save();
+                }
+                $order->save();
+            });
+
+            //如果完成订单生成订单中的产品，并更新订单状态
+            if ($order->order_status == 1) {
+                static::orderMakeProduct($order);
+                return $payResult = [
+                    'status' => 1,
+                    'note' => '已支付',
+                ];
+            } else {
+                return $payResult = [
+                    'status' => 0,
+                    'note' => '未支付',
+                ];
+            }
+
+        } catch (\Exception $e) {
+            $message = 'Product pay for account error, $orderId=' . $orderId . ', error message: ' . $e->getMessage();
+            Log::error($message);
+            DBLog::error($message);
+            $payResult = [
+                'status' => 4,
+                'note' => '支付异常，请重新提交支付',
+            ];
+            return $payResult;
+        }
+
+    }
+
+    /**
+     * 充值响应
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response
+     */
+    public function accountPay(Request $request)
+    {
+        $payment = Payment::find($request->paymentId);
+        return view('api.financial_recharge_response', ['payment' => $payment]);
+    }
+
+    /**
+     * 产品支付请求回应
+     * @param  array $request 请求对象
+     * @return returnStatus
+     */
+    public static function orderTradeResponse($request)
+    {
+        $payment_no = $request['out_trade_no'];
+        $money = $request['total_fee'];
+        $out_trade_no = $request['trade_no'];
+
+        $returnStatus = [
+            'payment_no' => $payment_no,
+            'status' => true,
+            'money' => $money,
+        ];
+
+        $query = [
+            'payment_no' => $payment_no,
+            'is_paid' => 0,
+        ];
+        $payment = Payment::where($query)->first();
+        if ($payment) {
+            //更新支付表
+            $payment->pay_money = $money;
+            $payment->is_paid = 1;
+            $payment->out_trade_no = $out_trade_no;
+            $payment->pay_time = Carbon::now();
+
+            // 创建消费记录
+            $consume = new ConsumeLog;
+            $consume->user_id = $payment->user_id;
+            $consume->order_id = $payment->order_id;
+            $consume->pay_type = 1;
+            $consume->amount = $money;
+            $consume->method = $payment->paymentType->name;
+
+            //订单状态修改
+            $order = $payment->order;
+            $order->pay_money += $money;
+            $order->pay_money = round($order->pay_money, 2);
+
+            if ($order->pay_money > $order->order_money) {
+
+                $order->order_status = 1;
+                //超额退款处理
+                $overPay = $order->pay_money - $order->order_money;
+                $user = UserModel::find($order->user_id);
+                $user->money += $overPay;
+                //产生超额退款记录
+                $rechargeLog = new RechargeLog;
+                $rechargeLog->user_id = $user->id;
+                $rechargeLog->amount = $overPay;
+                $rechargeLog->method = '超额退款';
+            } elseif ($order->pay_money == $order->order_money) {
+                $order->order_status = 1;
+            }
+
+            try {
+                if (isset($user)) {
+                    DB::transaction(function () use ($payment, $user, $consume, $order, $rechargeLog) {
+                        $payment->save();
+                        $order->save();
+                        $consume->save();
+                        $user->save();
+                        $rechargeLog->save();
+                    });
+                } else {
+                    DB::transaction(function () use ($payment, $consume, $order) {
+                        $payment->save();
+                        $order->save();
+                        $consume->save();
+                    });
+                }
+
+                //如果成功,完成订单生成订单中的产品，并更新订单状态
+                static::orderMakeProduct($order);
+            } catch (\Exception $e) {
+                $errmsg = '支付通知处理异常，异常信息:' . $e->getMessage() . '，请求参数：' . json_encode($request);
+                Log::error($errmsg);
+                DBLog::error($errmsg);
+                return $returnStatus = [
+                    'payment_no' => $payment_no,
+                    'money' => $money,
+                    'status' => false,
+                ];
+            }
+
+        }
+
+        return $returnStatus;
+    }
+
+    /**
+     * 订单生成产品
+     * @param  [type] $order 订单
+     * @return void
+     */
+    public static function orderMakeProduct($order)
+    {
+        if ($order->product_type == 1 || $order->product_type == 2) {
+            //云系统订单处理
+            $product = Appsys::find($order->product_id);
+            $className = 'App\Api\Product\\' . trim($product->class_name);
+            $appsys = new $className;
+            $result = $appsys->makeOrderProduct($order->id);
+            if ($result) {
+                $order->order_status = 2;
+                $order->save();
+                if ($order->product_type == 1) {
+                    //触发云系统订单成功事件
+                    event(new OrderSuccCloudSystem($order));
+                } elseif ($order->product_type == 2) {
+                    // 触发云平台成功事件
+                    event(new OrderSuccCloudPlatform($order));
+                }
+            } else {
+                $order->order_status = 3;
+                $order->save();
+                //触发订单处理失败事件
+                event(new OrderFailDeal($order));
+            }
+        } elseif ($order->product_type == 0) {
+            //云平台订单处理
+            $product = Appsvc::find($order->product_id);
+            $className = 'App\Api\Product\\' . trim($product->class_name);
+            $appsys = new $className;
+            $result = $appsys->makeOrderProduct($order->id);
+            if ($result) {
+                $order->order_status = 2;
+                $order->save();
+                //触发流量红包订单成功事件
+                event(new OrderSuccServiceLlhb($order));
+            } else {
+                $order->order_status = 3;
+                $order->save();
+                //触发订单处理失败事件
+                event(new OrderFailDeal($order));
+            }
+        }
+    }
+
+    /**
+     * 在线支付
+     * @param  int $orderId       订单id
+     * @param  double $payMoney      支付金额
+     * @param  int $paymentTypeId 支付类型
+     * @return string $code       支付链接
+     */
+    public function orderPayOnline($orderId, $payMoney, $paymentTypeId)
+    {
+        //创建支付单
+        $payment = Payment::createPaymentByOrder($orderId, $payMoney, $paymentTypeId);
+
+        $paymentType = $payment->paymentType;
+        $className = 'App\Api\Payment\\' . ucfirst($paymentType->class_name) . 'PaymentHandler';
+        $paymentHander = new $className();
+        $code = $paymentHander->makePaymentCode($payment, $orderId);
+
+        return $code;
+    }
+
+    /**
+     * 产品详情页
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response   产品详情页
+     */
+    public function orderDetail(Request $request)
+    {
+        $orderDetail = '';
+        $order = Order::find($request->order_id);
+        if (empty($order)) {
+            return view('errors.503');
+        }
+
+        if ($order->product_type == 1 || $order->product_type == 2) {
+            $product = Appsys::find($order->product_id);
+            if (!empty($product->class_name)) {
+                $className = 'App\Api\Product\\' . trim($product->class_name);
+                $productHandleClass = new $className;
+                if (!empty($order->buy_info)) {
+                    $orderDetail = $productHandleClass->displayBuyInfo($order->buy_info);
+                }
+            }
+        } elseif ($order->product_type == 0) {
+            $product = Appsvc::find($order->product_id);
+            if (!empty($product->class_name)) {
+                $className = 'App\Api\Product\\' . trim($product->class_name);
+                $productHandleClass = new $className;
+                if (!empty($order->buy_info)) {
+                    $orderDetail = $productHandleClass->displayBuyInfo($order->buy_info);
+                }
+            }
+        }
+        $consumes = $order->consumes()->where('pay_type', 0)->get();
+        $payments = $order->payments()->where('is_paid', 1)->get();
+        return view('user.financial_order_detail', [
+            'order' => $order,
+            'orderDetail' => $orderDetail,
+            'payments' => $payments,
+            'consumes' => $consumes,
+        ]);
+    }
+    /**
+     * 取消订单处理
+     * @param  Request $request HTTP请求对象
+     * @return json
+     */
+    public function orderCancel(Request $request)
+    {
+        $user = $request->user();
+
+        $order = Order::where([
+            'id' => $request->order_id,
+            'user_id' => $user->id,
+        ])->first();
+
+        if (empty($order)) {
+            return parent::responseJson(1002, '订单输入有误，无此订单');
+        }
+        if ($order->pay_money != 0) {
+            $payMoney = ['payMoney' => $order->pay_money];
+        } else {
+            $payMoney = ['payMoney' => ''];
+        }
+        //取消订单,把已付金额退回账户余额
+        try {
+            $order->order_status = 4;
+            if ((float) $order->pay_money != 0) {
+                //退款充值记录
+                $rechargeLog = new RechargeLog;
+                $rechargeLog->user_id = $user->id;
+                $rechargeLog->amount = $order->pay_money;
+                $rechargeLog->method = '订单取消退款';
+                //退款到用户账户余额
+                $user->money += $order->pay_money;
+                //订单取消后已付金额回0
+                $order->pay_money = 0;
+                DB::transaction(function () use ($rechargeLog, $user, $order) {
+                    $rechargeLog->save();
+                    $user->save();
+                    $order->save();
+                });
+            } else {
+                $order->save();
+            }
+            $data = [
+                'errcode' => 0,
+                'orderNo' => $order['order_no'],
+            ];
+            return json_encode($data);
+        } catch (\Exception $e) {
+            $errmsg = '订单取消退款处理异常，异常信息:' . $e->getMessage() . '，请求参数：' . json_encode($request->all());
+            Log::error($errmsg);
+            DBLog::error($errmsg);
+            return parent::responseJson(1002, '订单取消异常,请重新提交');
+        }
+    }
+
+    /**
+     * 订单支付验证
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response
+     */
+    public function payCheck(Request $request)
+    {
+        $user = $request->user();
+        $order = Order::find($request->order_id);
+        if (empty($order)) {
+            return view('user.financial_cancel_order_abnormal', [
+            ]);
+        }
+
+        $orderStatus = $order->order_status;
+
+        if ($orderStatus == 0) {
+            //订单支付状态未完成
+            return view('user.financial_pay_order_undone', [
+                'order' => $order,
+            ]);
+        } elseif ($orderStatus == 1 || $orderStatus == 2) {
+            //订单支付状态已完成
+            return view('user.financial_pay_success', [
+                'user' => $user,
+                'order' => $order,
+            ]);
+        } elseif ($orderStatus == 3) {
+            //订单已支付，处理异常，请与我们的客服联系。
+            return view('user.financial_order_abnormal', [
+                'order' => $order,
+            ]);
+        } elseif (($orderStatus == 4)) {
+            //订单已经取消
+            $payMoney = null;
+            return view('user.financial_order_cancel', $payMoney);
+        }
+    }
+
+    /**
+     * 充值支付验证
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response
+     */
+    public function rechargeCheck(Request $request)
+    {
+        $payment = Payment::find($request->payment_id);
+
+        if (empty($payment)) {
+            return view('user.financial_recharge_abnormal', [
+            ]);
+        }
+
+        $paymentStatus = $payment->is_paid;
+
+        if ($paymentStatus == 1) {
+            //充值成功显示充值详情页面
+            return view('user.financial_recharge_detail', ['payment' => $payment]);
+        } else {
+            //充值为成功显示跳转页面，并自动跳转回充值页面
+            return view('user.financial_recharge_undone');
+        }
+    }
+    /**
+     * 异常订单处理
+     * @param  Request $request HTTP请求对象
+     * @return \Illuminate\Http\Response
+     */
+    public function abnormalOrderDeal(Request $request)
+    {
+        $user = $request->user();
+        $order = Order::find($request->order_id);
+        if (empty($order)) {
+            return parent::responseJson(1002, '订单输入有误，无此订单');
+        }
+
+        if ($order->user_id != $user->id) {
+            return parent::responseJson(1002, '您不是订单本人，无权操作该订单');
+        }
+
+        $productUtil = new ProductUtil;
+        $result = $productUtil->dealErrorOrder($order);
+        return $result;
+
+    }
+
+}

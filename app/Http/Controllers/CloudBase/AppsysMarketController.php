@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\CloudBase;
+
+use DB;
+use Redirect;
+use App\Models\Appsys;
+use App\Models\AppsysSaleItem;
+use App\Models\AppsysType;
+use App\Models\Order;
+use App\Models\UserProduct;
+use App\Api\Product\AppsysProductHandler;
+use Illuminate\Http\Request;
+
+/**
+ * 云应用系统中应用市场模块操作控制器类
+ */
+class AppsysMarketController extends AppsysBaseController
+{
+    
+    /**
+     * 构造函数
+     *
+     * @return void
+     */
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
+    /**
+     * 显示应用市场首页，即展示可购买的应用产品列表
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function index(Request $request)
+    {
+        // 获取应用类型参数
+        $apptype = intval($request->input('type', ''));
+        // 先从应用系统信息表中查询产品列表
+        $rows = intval($request->input('rows'));
+        $keyword = trim($request->input('keyword'));
+        $query = Appsys::where('sale_visible', '<>', 0);
+        if ($apptype > 0) {
+            $query->where('type_id', $apptype);
+        }
+        if ($this->limitDeployPosition > 0) {
+            $limitDeployPosition = $this->limitDeployPosition;
+            $query->where(function($query) use ($limitDeployPosition){
+                $query = $query->where('deploy_position', 0)->orWhere('deploy_position', $limitDeployPosition);
+            });
+        }
+        if (!empty($keyword)) {
+            $data = $query->where('shortname', 'like', '%'.$keyword.'%')->orWhere('name', 'like', '%'.$keyword.'%')->paginate($rows);
+        } else {
+            $data = $query->paginate($rows);
+        }
+        // 再查询关联的套餐列表，并赋值到sale_items字段中
+        $this->addSubTableInfo($data, 'saas_appsys_sale_item', 'appsys_id', 'sale_items', 'sort', 'desc', true);
+        // 再查询应用系统类型列表
+        $apptypes = AppsysType::where('belong_type', 0)->orWhere('belong_type', $this->productType)->orderBy('sort', 'desc')->get();
+        // 返回结果
+        return view($this->bladePrefix.'market_index', ['products' => $data, 'typeid' => $apptype, 'apptypes' => $apptypes]);
+    }
+    
+    /**
+     * 显示产品详情页面
+     *
+     * @return \Illuminate\Http\Response
+     */
+    public function detail(Request $request)
+    {
+        // 查询产品信息
+        $id = intval($request->input('id'));
+        $product = Appsys::find($id);
+        if (!$this->isVisibleProduct($product)) {
+            $product = null;
+        }
+        // 再查询关联的套餐列表，并赋值到sale_items字段中
+        if (!empty($product)) {
+            $this->addSubTableInfo([$product], 'saas_appsys_sale_item', 'appsys_id', 'sale_items', 'sort', 'desc', true);
+        }
+        // 查询订购记录
+        $orders = Order::where('product_type', $this->productType)->where('product_id', $id)->whereIn('order_status', array(1, 2, 3))->with('user')->get();
+        // 返回结果
+        return view($this->bladePrefix.'market_detail', ['product' => $product, 'orders' => $orders]);
+    }
+
+    /**
+     * 提交订单立即购买处理请求（Ajax调用请求）
+     *
+     * @return \Illuminate\Http\Response 返回JSON格式字符串数据
+     */
+    public function submitOrder(Request $request)
+    {
+        // 查询购买的产品信息和购买的产品套餐信息
+        $errMsg = '';
+        $linkTo = '';
+        $linkText = '';
+        $productId = intval($request->input('id'));
+        $itemId = intval($request->input('item_id'));
+        $product = Appsys::find($productId);
+        $item = AppsysSaleItem::find($itemId);
+        if (!$this->isValidProduct($product)) {
+            $errMsg = '您所要购买的产品不存在或已下架！';
+        } else if (empty($item) || $item->appsys_id != intval($productId)) {
+            $errMsg = '您所选择购买的套餐不存在或已取消！';
+        }
+        if (!empty($errMsg)) {
+            return view('errors.cloud_system_error', ['message' => $errMsg, 'linkText' => $linkText, 'linkTo' => $linkTo, '_fw_uriPrefix' => $this->getUriPrefix()]);
+        }
+        // 判断该产品订单是否已存在
+        $user = $request->user();
+        $orders = Order::where('user_id', $user->id)->where('product_type', $this->productType)->where('product_id', $productId)->where('order_status', '<', 4)->orderBy('id', 'desc')->get();
+        if (count($orders) > 0 && ($this->productType == 1 || $this->productType == 2)) { // 云系统和云平台产品，不能重复购买
+            foreach ($orders as $order) {
+                if ($order->order_status == 3) {
+                    $linkText = '去完成处理';
+                    $linkTo = url('user/financial_order_detail?order_id='.$order->id);
+                    $errMsg = '您已购买了该产品，但系统处理失败！';
+                    break;
+                } else if ($order->order_status == 1) {
+                    $linkText = '去完成处理';
+                    $linkTo = url('user/financial_order_detail?order_id='.$order->id);
+                    $errMsg = '您已购买了该产品，但系统还未处理！';
+                    break;
+                } else if ($order->order_status == 2) {
+                    $userProducts = UserProduct::where('order_id', $order->id)->get();
+                    if (!empty($userProducts) && count($userProducts) > 0) {
+                        $userProduct = $userProducts[0];
+                        $linkText = '查看产品';
+                        $linkTo = url(($this->productType == 1 ? 'cloud_system' : 'cloud_platform').'/mydetail?id='.$userProduct->id);
+                        $errMsg = '您成功已购买了该产品，请勿重复购买！';
+                        break;
+                    }
+                } else if ($order->order_status == 0) { // 对应未支付订单，报错优先级不高，因此找到时，不break，而是继续往下走看是否还有更高优先级的报错
+                    $linkText = '去完成支付';
+                    $linkTo = url('user/financial_pay?order_id='.$order->id);
+                    $errMsg = '您已购买了该产品，但还未完成支付！';
+                }
+            }
+        }
+        if (!empty($errMsg)) {
+            return view('errors.cloud_system_error', ['message' => $errMsg, 'linkText' => $linkText, 'linkTo' => $linkTo, '_fw_uriPrefix' => $this->getUriPrefix()]);
+        }
+        // 生成订单并保存
+        $buyInfo = [
+            'sale_item_id' => $item->id, 
+            'license_func_package' => $item->license_func_package,
+            'license_domain_count' => $item->license_domain_count,
+            'license_day_count' => $item->license_day_count,
+            'license_extra_info' => $item->license_extra_info
+        ];
+        $orderTopic = $product->name.'-'.$item->name;
+        $handler = new AppsysProductHandler;
+        $order = $handler->makeOrder($user->id, $orderTopic, $this->productType, $productId, $item->id, $item->current_price, $buyInfo);
+        // 跳转到支付页面
+        return Redirect::to(url('user/financial_pay?order_id='.$order->id));
+    }
+    
+}
